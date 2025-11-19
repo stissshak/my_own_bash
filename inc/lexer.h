@@ -101,6 +101,7 @@ Token extract(const char *str, size_t *index){
 	return extract_word(str, index);
 }
 
+// Creating Array of Tokens and extracting every Token from string
 Token *tokenize(const char *str){
 	size_t size = 0, index = 0, count = 0;
 	while(str[size] != '\n' && str[size] != '\0' && str[size] != '#') ++size;
@@ -127,12 +128,14 @@ Token *tokenize(const char *str){
 
 
 
+// Easy output of every Token
 void print_tokens(Token *tokens){
 	for(size_t i = 0; tokens[i].type != TOKEN_EOF; ++i){
 		printf("%d - %s\n", (int)tokens[i].type, tokens[i].op);
 	}
 }
 
+// Clean elements of Array and this Array
 void clean_tokens(Token *tokens){
 	for(size_t i = 0; tokens[i].type != TOKEN_EOF; ++i){
 		free((void*)tokens[i].op);

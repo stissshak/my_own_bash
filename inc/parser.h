@@ -19,6 +19,7 @@ RedirType get_redir_type(Token);
 
 //////////////////////////////////////
 
+// Auxiliary functions
 int match(Token token, TokenType type){
 	return token.type == type;
 }
@@ -79,11 +80,13 @@ int is_operator(Token t){
 
 ///////////////////////////////////////////////
 
+// Wrapper
 ASTNode *parse(Token *tokens){
 	size_t index = 0;
 	return parse_seq(tokens, &index);
 }
 
+// Parsing ; - with the lowest priotity
 ASTNode *parse_seq(Token *tokens, size_t *index){
 	ASTNode *left = parse_logic(tokens, index);
 
@@ -99,6 +102,7 @@ ASTNode *parse_seq(Token *tokens, size_t *index){
 	return left;
 }
 
+// Parsing || and &&
 ASTNode *parse_logic(Token *tokens, size_t *index){
 	ASTNode *left = parse_back(tokens, index);
 	
@@ -124,6 +128,7 @@ ASTNode *parse_back(Token *tokens, size_t *index){
 }
 
 
+// Parsing |
 ASTNode *parse_pipe(Token *tokens, size_t *index){
 	ASTNode *left = parse_group(tokens, index);
 	
@@ -159,6 +164,7 @@ ASTNode *parse_group(Token *tokens, size_t *index){
 	return parse_command(tokens, index);
 }
 
+// Parsing command with redirects
 ASTNode *parse_command(Token *tokens, size_t *index){
 	char **argv = NULL;
 	int argc = 0;
