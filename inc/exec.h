@@ -1,8 +1,8 @@
 #pragma once
 #include "parser.h"
+#include "func.h"
 #include <unistd.h>
 #include <fcntl.h>
-#include "math.h"
 #include <sys/wait.h>
 
 int execute(ASTNode*);
@@ -65,11 +65,39 @@ int execute_redirect(Redir *redirs){
 	return 0;
 }
 
+int execute_builtin(ASTNode *root){
+	for(size_t i = 0; i < sizeof(funcs)/sizeof(Function); ++i){
+		if(!strcmp(root->command.argv[0], funcs[i].name)){
+			int saved_stdin = dup(STDIN_FILENO);	
+			int saved_stdout = dup(STDOUT_FILENO);	
+			int saved_stderr = dup(STDERR_FILENO);	
+			
+				
+			execute_redirect(root->command.head);
+			int status = funcs[i].func(root->command.argc, root->command.argv);
+			
+			dup2(saved_stdin, STDIN_FILENO);	
+			dup2(saved_stdout, STDOUT_FILENO);	
+			dup2(saved_stderr, STDERR_FILENO);
+
+			close(saved_stdin);	
+			close(saved_stdout);	
+			close(saved_stderr);
+			
+			return status;	
+		}
+	}
+	return -1;
+}
+
 int execute_command(ASTNode *root){
+	
+	int builtin = execute_builtin(root);
+	if(builtin >= 0) return builtin;
 	pid_t pid = fork();
 	if(pid < 0) return 1;
 	if(pid == 0){
-		execute_redirect(root->command.head);
+		execute_redirect(root->command.head);	
 		int status = execvp(root->command.argv[0], root->command.argv);
 		if(status < 0){
 			perror("execvpe: execute_command:");
@@ -91,6 +119,7 @@ int execute_back(ASTNode *root){
 	return 0;
 }
 
+// Main function that call all other functions
 int execute(ASTNode *root){
 	if(!root) return 1;
 	switch(root->type){
