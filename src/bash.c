@@ -3,6 +3,10 @@
 #include "lexer.h"
 #include "parser.h"
 #include "exec.h"
+
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
 #include <time.h>
@@ -11,7 +15,7 @@
 
 #define PRINT_TIME 30000000
 #define BUF_SIZE 1024
-
+#define DSS 128
 
 
 void greeting(){
@@ -26,11 +30,11 @@ void greeting(){
 }
 
 void path(){
-	char buf[128];
-	char pwd[128];
-	getcwd(pwd, 128);	
-	char host[128];
-	gethostname(host, 128);
+	char buf[DSS];
+	char pwd[DSS];
+	getcwd(pwd, DSS);	
+	char host[DSS];
+	gethostname(host, DSS);
 
 	char home[] = "/home/";
 	uid_t euid = geteuid();
@@ -52,7 +56,6 @@ int main(){
 	char buf[BUF_SIZE];
 	while(1){
 		path();
-		// write(STDOUT_FILENO, pwd, size);
 		int len = read(STDIN_FILENO, buf, BUF_SIZE);
 		if(len == 0){
 			putchar('\n');
@@ -60,9 +63,7 @@ int main(){
 		}	
 		buf[len-1] = '\0';
 		Token *tokens = tokenize(buf);
-	//	print_tokens(tokens);
 		ASTNode *root = parse(tokens);
-	//	print_ast(root);
 		execute(root);
 		clean_tokens(tokens);
 		free_ast(root);

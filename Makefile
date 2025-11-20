@@ -28,11 +28,11 @@ release: clean $(EXE)
 
 $(EXE): $(OBJ)
 	@mkdir -p $(BIN_DIR)
-	$(CC) -o $@ $^
+	@$(CC) -o $@ $^
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(OBJ_DIR) $(DEP_DIR)
-	$(CC) $(CFLAGS) -MMD -MP -MF $(DEP_DIR)/$*.d -c $< -o $@
+	@$(CC) $(CFLAGS) -MMD -MP -MF $(DEP_DIR)/$*.d -c $< -o $@
 
 clean:
 	rm -f $(OBJ) $(DEP) $(EXE)
