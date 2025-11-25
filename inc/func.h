@@ -16,7 +16,7 @@ int echo(int, char*[]);
 int cd(int, char*[]);
 int ls(int, char*[]);
 int touch(int, char*[]);
-int mkdir(int, char*[]);
+int makedir(int, char*[]);
 int grep(int, char*[]);
 int pwd(int, char*[]);
 int mv(int, char*[]);

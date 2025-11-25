@@ -36,7 +36,7 @@ void path(){
 	char host[DSS];
 	gethostname(host, DSS);
 
-	char home[] = "/home/";
+	char home[DSS] = "/home/";
 	uid_t euid = geteuid();
 	struct passwd *pw = getpwuid(euid);
 
@@ -60,7 +60,7 @@ int main(){
 		if(len == 0){
 			putchar('\n');
 			exit(0);
-		}	
+		}
 		buf[len-1] = '\0';
 		Token *tokens = tokenize(buf);
 		ASTNode *root = parse(tokens);

@@ -8,27 +8,73 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/wait.h>
+#include <string.h>
 
 Function funcs[] = {
 	{"echo", echo},
-	{"cd", cd}
+	{"cd", cd},
+	{"touch", touch},
+	{"mkdir", makedir},
+	{"pwd", pwd},
+	{"mv", mv},
+	{"cat", cat}
 };
 
 
 int execute_redirect(Redir *redirs){
-	if(!redirs) return 1;
+	if(!redirs) return 0;
 	Redir *head = redirs;
 	while(head){
 		int file;
+		int pipefd[2];
+		int fd;
 		switch(head->rt){
 			case(IN_BUF):
-									
-			case(IN_END):
+				if(pipe(pipefd) == -1){
+					perror("redirect: pipe");
+					return 1;
+				}		
 				
+				write(pipefd[1], head->file, strlen(head->file));
+				write(pipefd[1], "\n", 1);
+				close(pipefd[1]);
+		
+				if(dup2(pipefd[0], STDIN_FILENO) < 0){
+					perror("redirect: dup2");
+					close(pipefd[0]);
+					return 1;
+				}
+				close(pipefd[0]);
+				break;			
+			case(IN_END):
+				if(pipe(pipefd) == -1){
+					perror("redirect: pipe");
+					return 1;
+				}		
+				
+				write(pipefd[1], head->file, strlen(head->file));
+				close(pipefd[1]);
+		
+				if(dup2(pipefd[0], STDIN_FILENO) < 0){
+					perror("redirect: dup2");
+					close(pipefd[0]);
+					return 1;
+				}
+				close(pipefd[0]);
+				break;
 			case(IN_ERR):
-
+				fd = atoi(head->file);
+				if(dup2(fd, STDIN_FILENO) < 0){
+					perror("redirect: dup2");
+					return 1;
+				}
+				break;
 			case(IN_NEW):
-				file = open(head->file, O_RDONLY, 0666);
+				file = open(head->file, O_CREAT | O_RDWR, 0666);
+				if(file < 0){
+					perror("redirect: open");
+					return 1;
+				}
 				if(dup2(file, STDIN_FILENO) < 0){
 					perror("cringe");
 					close(file);
@@ -36,25 +82,47 @@ int execute_redirect(Redir *redirs){
 				}
 				close(file);
 				break;
-
 			case(IN_OUT):
-
-			case(OUT_END):
-					
+				file = open(head->file, O_RDONLY);
+				if(file < 0){
+					perror("redirect: open");
+					return 1;
+				}
+				if(dup2(file, STDIN_FILENO) < 0){
+					perror("redirect: dup2");
+					close(file);
+					return 1;	
+				}
+				close(file);
+				break;
+			case(OUT_END):	
 				file = open(head->file, O_CREAT | O_WRONLY | O_APPEND, 0666);
+				if(file < 0){
+					perror("redirect: open");
+					return 1;
+				}
 				if(dup2(file, STDOUT_FILENO) < 0){
-					perror("cringe");
+					perror("redirect: dup2");
 					close(file);
 					return 1;
 				}
 				close(file);
 				break;
 			case(OUT_ERR):
-
+				fd = atoi(head->file);
+				if(dup2(fd, STDOUT_FILENO) < 0){
+					perror("redirect: dup2");
+					return 1;
+				}
+				break;
 			case(OUT_NEW):
 				file = open(head->file, O_CREAT | O_WRONLY | O_TRUNC, 0666);
+				if(file < 0){
+					perror("redirect: open");
+					return 1;
+				}
 				if(dup2(file, STDOUT_FILENO) < 0){
-					perror("cringe");
+					perror("redirect: open");
 					close(file);
 					return 1;
 				}
@@ -94,7 +162,6 @@ int execute_builtin(ASTNode *root){
 }
 
 int execute_command(ASTNode *root){
-	
 	int builtin = execute_builtin(root);
 	if(builtin >= 0) return builtin;
 	pid_t pid = fork();
@@ -113,12 +180,71 @@ int execute_command(ASTNode *root){
 }
 
 int execute_pipe(ASTNode *root){
-	*root;
-	return 0;	
+	int pipefd[2];
+	
+	if(pipe(pipefd) == -1){
+		perror("execute_pipe:");
+		return 1;
+	}
+
+	int l = fork();
+	if(l < 0){
+		perror("execute_pipe:");
+		close(pipefd[0]);
+		close(pipefd[1]);
+		return 1;
+	}
+
+	if(l == 0){
+		close(pipefd[0]);
+		if(dup2(pipefd[1], STDOUT_FILENO) == -1){
+			perror("execute_pipe:");
+			return 1;
+		}
+		close(pipefd[1]);
+		exit(execute(root->binary.left));
+	}
+
+	int r = fork();
+	if(r < 0){
+		perror("execute_pipe:");
+		close(pipefd[0]);
+		close(pipefd[1]);
+		return 1;
+	}
+
+	if(r == 0){
+		close(pipefd[1]);
+		if(dup2(pipefd[0], STDIN_FILENO) == -1){
+			perror("execute_pipe:");
+			return 1;
+		}
+		close(pipefd[0]);
+		exit(execute(root->binary.right));
+	}
+
+	close(pipefd[0]);
+	close(pipefd[1]);
+
+	int status_l, status_r;
+	waitpid(l, &status_l, 0);
+	waitpid(r, &status_r, 0);
+
+	return WEXITSTATUS(status_r);	
 }
 
 int execute_back(ASTNode *root){
-	*root;
+	pid_t pid = fork();
+
+	if(pid < 0){
+		perror("execute_back:");
+		return 1;
+	}
+
+	if(pid == 0){
+		exit(execute(root));
+	}
+
 	return 0;
 }
 
