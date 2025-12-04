@@ -4,8 +4,9 @@
 
 #include "jobs.h"
 #include <sys/types.h>
+#include <signal.h>
 
-extern job_t *j_upd_need;
+extern volatile sig_atomic_t j_upt_need;
 
 typedef enum {
         KEY_CHAR,
@@ -25,5 +26,6 @@ typedef enum {
 
 void enable_raw_mode();
 void disable_raw_mode();
+void set_prompt_func(void (*f)(void));
 KeyType read_key(char *);
 size_t get_line(char **);

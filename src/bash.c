@@ -21,7 +21,7 @@
 #define BUF_SIZE 1024
 #define DSS 128
 
-volatile sig_atomic_t j_upt_need = 0;
+extern volatile sig_atomic_t j_upt_need = 0;
 
 void signal_handler(int sig){
 	(void)sig;
@@ -85,14 +85,18 @@ int main(){
 	greeting();
 	signals();
 	enable_raw_mode();
+	set_prompt_func(path);
+
 	char *buf;
 	while(1){
+		path();
+		int len = get_line(&buf);
+		
 		if(j_upt_need){
 			update_jobs();
 			j_upt_need = 0;
 		}
-		path();
-		int len = get_line(&buf);
+	
 		if(buf == NULL){
 			putchar('\n');
 			break;

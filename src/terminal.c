@@ -1,18 +1,23 @@
 // terminal.c
 
 #include "terminal.h"
+#include "jobs.h"
 
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <errno.h>
 #include <termios.h>
 #include <unistd.h>
-
-extern job_t *j_upd_need;
 
 #define DEFAULT_SIZE 256
 
 struct termios oldt, newt;
+
+static void (*reprint_greeting)(void) = NULL; 
+
+void set_prompt_func(void (*f)(void)){
+	reprint_greeting = f;
+}
 
 void enable_raw_mode() {
 	tcgetattr(STDIN_FILENO, &oldt);
@@ -27,7 +32,8 @@ void disable_raw_mode() {
 
 KeyType read_key(char *out_char) {
 	char c;
-	if (read(STDIN_FILENO, &c, 1) != 1) return KEY_NONE;
+
+	if (read(STDIN_FILENO, &c, 1) < 1) return KEY_NONE;
 
 	if (c == 4) return KEY_CTRL_D;
 	if (c == 3) return KEY_CTRL_C;
@@ -39,13 +45,9 @@ KeyType read_key(char *out_char) {
 		return KEY_CHAR;
 	}
 
-	if (c == '\n' || c == '\r') {
-		return KEY_ENTER;
-	}
+	if (c == '\n' || c == '\r') return KEY_ENTER;
 
-	if (c == 127) {
-		return KEY_BACKSPACE;
-	}
+	if (c == 127) return KEY_BACKSPACE;
 
 	if (c == '\x1b') { // ESC
 		char seq[2];
@@ -68,22 +70,40 @@ KeyType read_key(char *out_char) {
 		}
 		return KEY_ESC;
 	}
+	return KEY_ESC;
+}
+
+static void redraw_line(char *buf, size_t len, size_t cur){
+	write(STDOUT_FILENO, "\r\x1b[K", 4);
+	if (reprint_greeting) reprint_greeting();
+ 	write(STDOUT_FILENO, buf, len);
+    
+	if (cur < len) {
+		char esc[16];
+		int n = snprintf(esc, sizeof(esc), "\x1b[%zuD", len - cur);
+		write(STDOUT_FILENO, esc, n);
+	}
 }
 
 size_t get_line(char **str) {
 	size_t n = DEFAULT_SIZE, len = 0, cursor = 0;
 	*str = malloc(n);
+	if(!*str) return 0;
 	char *buf = *str;
 
-	char c;
+	char c;	
 	int finished = 0;
 	while (!finished) {
+		KeyType kt = read_key(&c);
 		
-		if(j_upd_need){
-				//
+		if (kt == KEY_NONE){
+			if (j_upt_need){
+				j_upt_need = 0;
+				update_jobs();
+				redraw_line(buf, len, cursor);
+			}
 		}
 
-		KeyType kt = read_key(&c);
 		switch (kt) {
 			case KEY_CHAR:
 				if (len >= n - 1){

@@ -260,7 +260,7 @@ int execute_pipe(ASTNode *root, int back){
 		exit(execute(root->binary.right, back));
 	}
 
-	setpgid(r, r);
+	setpgid(r, l);
 
 	close(pipefd[0]);
 	close(pipefd[1]);
@@ -275,7 +275,7 @@ int execute_pipe(ASTNode *root, int back){
 
 		int status;
 		while(waitpid(-l, &status, WUNTRACED) > 0){
-			if(WEXITSTATUS(status) || WEXITSTATUS(status)){
+			if(WEXITSTATUS(status) || WIFSIGNALED(status)){
 				if(waitpid(-l, &status, WNOHANG) <= 0) break;
 			}
 		}
