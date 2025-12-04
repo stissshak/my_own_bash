@@ -36,20 +36,17 @@ RedirType get_redir_type(Token token){
 
 
 int match_lparen(TokenType t){
-	return (t == TOKEN_LLPAREN ||
-		t == TOKEN_LPAREN  ||
+	return (t == TOKEN_LPAREN  ||
 		t == TOKEN_LBRACE);
 }
 
 int match_rparen(TokenType t){
-	return (t == TOKEN_RRPAREN ||
-		t == TOKEN_RPAREN  ||
+	return (t == TOKEN_RPAREN  ||
 		t == TOKEN_RBRACE);
 }
 
 TokenType get_matching_close(TokenType open){
 	switch(open){
-		case TOKEN_LLPAREN: return TOKEN_RRPAREN;
 		case TOKEN_LPAREN: return TOKEN_RPAREN;
 		case TOKEN_LBRACE: return TOKEN_RBRACE;
 		default: return TOKEN_EOF;
@@ -62,7 +59,6 @@ int is_operator(Token t){
 		t.type == TOKEN_OR ||
 		t.type == TOKEN_BACK ||
 		t.type == TOKEN_BAR ||
-		t.type == TOKEN_PIPE_AMP ||
 		match_lparen(t.type) ||
 		match_rparen(t.type));
 }
@@ -76,17 +72,19 @@ ASTNode *parse(Token *tokens){
 	return parse_seq(tokens, &index);
 }
 
-// Parsing ; - with the lowest priotity
+// Parsing ; and & - with the lowest priotity
 ASTNode *parse_seq(Token *tokens, size_t *index){
 	ASTNode *left = parse_logic(tokens, index);
 
-	while(!match(tokens[*index], TOKEN_EOF) && match(tokens[*index], TOKEN_SEMICOLON)){
+	while(!match(tokens[*index], TOKEN_EOF) && (match(tokens[*index], TOKEN_SEMICOLON) || match(tokens[*index], TOKEN_BACK))){
+		NodeType nt = match(tokens[*index], TOKEN_SEMICOLON) ? NODE_SEQ : NODE_BACK;
+
 		++*index;
-		if(match(tokens[*index], TOKEN_EOF)){
-			break;
-		}
+	//	if(match(tokens[*index], TOKEN_EOF)){
+	//		break;
+	//	}
 		ASTNode *right = parse_logic(tokens, index);
-		left = create_binary(NODE_SEQ, left, right);
+		left = create_binary(nt, left, right);
 	}
 	
 	return left;
@@ -94,35 +92,23 @@ ASTNode *parse_seq(Token *tokens, size_t *index){
 
 // Parsing || and &&
 ASTNode *parse_logic(Token *tokens, size_t *index){
-	ASTNode *left = parse_back(tokens, index);
+	ASTNode *left = parse_pipe(tokens, index);
 	
 	while(!match(tokens[*index], TOKEN_EOF) && (match(tokens[*index], TOKEN_AND) || match(tokens[*index], TOKEN_OR))){
 		NodeType nt = match(tokens[*index], TOKEN_AND) ? NODE_AND : NODE_OR;
 		++*index;
-		ASTNode *right = parse_back(tokens, index);
+		ASTNode *right = parse_pipe(tokens, index);
 		left = create_binary(nt, left, right);
 	}
 
 	return left;
 }
 
-ASTNode *parse_back(Token *tokens, size_t *index){
-	ASTNode *left = parse_pipe(tokens, index);
-
-	while(!match(tokens[*index], TOKEN_EOF) && match(tokens[*index], TOKEN_BACK)){
-		++*index;
-		left = create_unary(NODE_BACK, left);
-	}
-	
-	return left;
-}
-
-
 // Parsing |
 ASTNode *parse_pipe(Token *tokens, size_t *index){
 	ASTNode *left = parse_group(tokens, index);
 	
-	while(!match(tokens[*index], TOKEN_EOF) && (match(tokens[*index], TOKEN_PIPE_AMP) || match(tokens[*index], TOKEN_BAR))){
+	while(!match(tokens[*index], TOKEN_EOF) && match(tokens[*index], TOKEN_BAR)){
 		NodeType nt = NODE_PIPE;
 		++*index;
 		ASTNode *right = parse_group(tokens, index);
@@ -136,7 +122,7 @@ ASTNode *parse_group(Token *tokens, size_t *index){
 	if(match_lparen(tokens[*index].type)){
 		TokenType open = tokens[*index].type;
 		TokenType close = get_matching_close(open);
-		NodeType nd = (open == TOKEN_LLPAREN) ? NODE_ARIPHM : NODE_SUBSHELL;
+		NodeType nd = NODE_SUBSHELL;
 		
 		++*index;
 		ASTNode *child = parse_seq(tokens, index);

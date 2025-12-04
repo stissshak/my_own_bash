@@ -1,0 +1,192 @@
+// terminal.c
+
+#include "terminal.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <termios.h>
+#include <unistd.h>
+
+#define DEFAULT_SIZE 256
+
+struct termios oldt, newt;
+
+void enable_raw_mode() {
+	tcgetattr(STDIN_FILENO, &oldt);
+	newt = oldt;
+	newt.c_lflag &= ~(ICANON | ECHO);
+	tcsetattr(STDIN_FILENO, TCSADRAIN, &newt);
+}
+
+void disable_raw_mode() {
+	tcsetattr(STDIN_FILENO, TCSADRAIN, &oldt);
+}
+
+KeyType read_key(char *out_char) {
+	char c;
+	if (read(STDIN_FILENO, &c, 1) != 1) return KEY_NONE;
+
+	if (c == 4) return KEY_CTRL_D;
+	if (c == 3) return KEY_CTRL_C;
+	if (c == 26) return KEY_CTRL_Z;
+	if (c == 12) return KEY_CTRL_L;
+
+	if (c >= 32 && c <= 126) {
+		*out_char = c;
+		return KEY_CHAR;
+	}
+
+	if (c == '\n' || c == '\r') {
+		return KEY_ENTER;
+	}
+
+	if (c == 127) {
+		return KEY_BACKSPACE;
+	}
+
+	if (c == '\x1b') { // ESC
+		char seq[2];
+		if (read(STDIN_FILENO, &seq[0], 1) != 1) return KEY_ESC;
+		if (read(STDIN_FILENO, &seq[1], 1) != 1) return KEY_ESC;
+
+		if (seq[0] == '[') {
+			switch (seq[1]) {
+				case 'A':
+					return KEY_UP;
+				case 'B':
+					return KEY_DOWN;
+				case 'C': 
+					return KEY_RIGHT;
+				case 'D': 
+					return KEY_LEFT;
+				default:
+					return KEY_ESC;
+			}
+		}
+		return KEY_ESC;
+	}
+}
+
+size_t get_line(char **str) {
+	size_t n = DEFAULT_SIZE, len = 0, cursor = 0;
+	*str = malloc(n);
+	char *buf = *str;
+
+	char c;
+	int finished = 0;
+	while (!finished) {
+		KeyType kt = read_key(&c);
+		switch (kt) {
+			case KEY_CHAR:
+				if (len >= n - 1){
+					n *= 2;
+					char *new_buf = realloc(buf, n);
+					if(!new_buf){
+						free(buf);
+						*str = NULL;
+						return 0;
+					}
+					buf = new_buf;
+					*str = buf;
+				}
+
+				for (size_t i = len; i > cursor; --i)
+					buf[i] = buf[i - 1];
+				buf[cursor] = c;
+				cursor++;
+				len++;
+
+				write(STDOUT_FILENO, &c, 1);
+				write(STDOUT_FILENO, "\x1b[s", 3);
+				write(STDOUT_FILENO, buf + cursor, len - cursor);
+				write(STDOUT_FILENO, "\x1b[u", 3);
+				break;
+			case KEY_BACKSPACE:
+				if (cursor == 0) break;
+
+				for (size_t i = cursor; i < len; ++i) {
+					buf[i - 1] = buf[i];
+				}
+				len--;
+				cursor--;
+
+				write(STDOUT_FILENO, "\x1b[D", 3);
+				write(STDOUT_FILENO, "\x1b[s", 3);
+				write(STDOUT_FILENO, buf + cursor, len - cursor);
+				write(STDOUT_FILENO, " ", 1);
+				write(STDOUT_FILENO, "\x1b[u", 3);
+				break;
+			case KEY_ENTER:
+				write(STDOUT_FILENO, "\n", 1);
+				finished = 1;
+				break;
+			case KEY_CTRL_D:
+				if(len == 0) {
+					free(buf);
+					*str = NULL;
+					return 0;
+				}
+
+				if(cursor < len) {
+					for(size_t i = cursor; i < len - 1; ++i){
+						buf[i] = buf[i + 1];
+					}
+					len--;
+					write(STDOUT_FILENO, "\x1b[s", 3);
+					write(STDOUT_FILENO, buf + cursor, len - cursor);
+					write(STDOUT_FILENO, " ", 1);
+					write(STDOUT_FILENO, "\x1b[u", 3);
+				}
+				break;
+			case KEY_CTRL_C:
+				write(STDOUT_FILENO, "^C\n", 3);
+				len = 0;
+				cursor = 0;
+				finished = 1;
+				break;
+			case KEY_CTRL_Z:
+			case KEY_CTRL_L:
+				write(STDOUT_FILENO, "\x1b[2J\x1b[H", 7);
+				break;
+			case KEY_UP:
+				for (size_t i = 0; i < len; ++i) {
+					if (buf[i] >= 'a' && buf[i] <= 'z')
+						buf[i] -= 'a' - 'A';
+				}
+				write(STDOUT_FILENO, "\x1b[2K", 4);
+				write(STDOUT_FILENO, "\x1b[1G", 4);
+				write(STDOUT_FILENO, buf, len);
+
+				break;
+			case KEY_DOWN:
+				for (size_t i = 0; i < len; ++i) {
+					if (buf[i] >= 'A' && buf[i] <= 'Z')
+						buf[i] += 'a' - 'A';
+				}
+				write(STDOUT_FILENO, "\x1b[2K", 4);
+				write(STDOUT_FILENO, "\x1b[1G", 4);
+				write(STDOUT_FILENO, buf, len);
+
+				break;
+			case KEY_LEFT:
+				if (cursor > 0) {
+					write(STDOUT_FILENO, "\x1b[D", 3);
+					cursor--;
+				}
+				break;
+			case KEY_RIGHT:
+				if (cursor < len) {
+					write(STDOUT_FILENO, "\x1b[C", 3);
+					cursor++;
+				}
+				break;
+			case KEY_ESC:
+			default:
+				break;
+		}
+	}
+	buf[len] = '\0';
+	return len;
+}
+

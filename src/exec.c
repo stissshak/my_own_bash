@@ -1,14 +1,17 @@
 // exec.c
 
+#include "jobs.h"
 #include "func.h"
 #include "exec.h"
 #include "parser.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <string.h>
+#include <signal.h>
 
 Function funcs[] = {
 	{"echo", echo},
@@ -17,9 +20,20 @@ Function funcs[] = {
 	{"mkdir", makedir},
 	{"pwd", pwd},
 	{"mv", mv},
-	{"cat", cat}
+	{"cat", cat},
+	{"jobs", jobs}
 };
+// cd pwd help history exit echo
+// jobs fg bg kill
 
+void signal_setter(){
+	setpgid(0, 0);
+	signal(SIGINT, SIG_DFL);
+        signal(SIGQUIT, SIG_DFL);
+        signal(SIGTSTP, SIG_DFL);
+        signal(SIGTTIN, SIG_DFL);
+        signal(SIGTTOU, SIG_DFL);
+}
 
 int execute_redirect(Redir *redirs){
 	if(!redirs) return 0;
@@ -161,22 +175,37 @@ int execute_builtin(ASTNode *root){
 	return -1;
 }
 
-int execute_command(ASTNode *root){
+int execute_command(ASTNode *root, int back){	
+	if(!root) return 1;
 	int builtin = execute_builtin(root);
 	if(builtin >= 0) return builtin;
+
 	pid_t pid = fork();
 	if(pid < 0) return 1;
+	
+	int shellpgid = getpgid(0);
 	if(pid == 0){
+		signal_setter();
+
 		execute_redirect(root->command.head);	
-		int status = execvp(root->command.argv[0], root->command.argv);
-		if(status < 0){
-			perror("execvpe: execute_command:");
-			exit(1);
-		}
+		execvp(root->command.argv[0], root->command.argv);
+		perror("execvpe: execute_command:");
+		exit(1);
 	}
-	int status;
-	wait(&status);
-	return WEXITSTATUS(status);
+
+	setpgid(pid, pid);
+
+	if(back) add_job(pid, root->command.argv[0], RUNNING);
+	else{
+		tcsetpgrp(STDIN_FILENO, pid);
+		
+		int status;
+		waitpid(pid, &status, WUNTRACED);
+
+		tcsetpgrp(STDIN_FILENO, shellpgid);
+		return WEXITSTATUS(status);
+	}
+	return 0;
 }
 
 int execute_pipe(ASTNode *root){
@@ -233,21 +262,6 @@ int execute_pipe(ASTNode *root){
 	return WEXITSTATUS(status_r);	
 }
 
-int execute_back(ASTNode *root){
-	pid_t pid = fork();
-
-	if(pid < 0){
-		perror("execute_back:");
-		return 1;
-	}
-
-	if(pid == 0){
-		exit(execute(root));
-	}
-
-	return 0;
-}
-
 // Main function that call all other functions
 int execute(ASTNode *root){
 	if(!root) return 1;
@@ -264,7 +278,10 @@ int execute(ASTNode *root){
 				execute(root->binary.right);
 			return 0;
 		case(NODE_BACK):
-			return execute_back(root->unary.child);
+			execute_command(root->binary.left, 1);
+			if(execute_command(root->binary.right, 0)){
+			}
+			return 0;
 		case(NODE_PIPE):
 			return execute_pipe(root);
 		case(NODE_SUBSHELL):
@@ -276,12 +293,10 @@ int execute(ASTNode *root){
 			int status;
 			wait(&status);
 			return WEXITSTATUS(status);
-	//	case(NODE_ARITHM):
-	//		return evaluate(root->unary.child);
 		case(NODE_COMMAND):
-			return execute_command(root);
+			return execute_command(root, 0);
 		default:
-			return 0;
+			return 1;
 	}
 }
 

@@ -1,8 +1,11 @@
+// bash.c
 #define _DEFAULT_SOURCE
 
 #include "lexer.h"
 #include "parser.h"
 #include "exec.h"
+#include "jobs.h"
+#include "terminal.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -12,11 +15,18 @@
 #include <time.h>
 #include <sys/types.h>
 #include <pwd.h>
+#include <signal.h>
 
 #define PRINT_TIME 30000000
 #define BUF_SIZE 1024
 #define DSS 128
 
+volatile sig_atomic_t j_upt_need = 0;
+
+void signal_handler(int sig){
+	(void)sig;
+	j_upt_need = 1;
+}
 
 void greeting(){
 	struct timespec tv = {.tv_sec = 0, .tv_nsec = PRINT_TIME};
@@ -51,22 +61,55 @@ void path(){
 	fflush(stdout);
 }
 
+void signals(){
+	sigset_t mask;
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGINT);
+	sigaddset(&mask, SIGQUIT);
+	sigaddset(&mask, SIGTERM);
+	sigaddset(&mask, SIGTSTP);
+	sigaddset(&mask, SIGTTIN);
+	sigaddset(&mask, SIGTTOU);
+	sigprocmask(SIG_BLOCK, &mask, NULL);
+
+	struct sigaction sa;
+	sa.sa_handler = signal_handler;
+	sa.sa_flags = SA_NOCLDSTOP;
+	sigemptyset(&sa.sa_mask);
+	if(sigaction(SIGCHLD, &sa, NULL) == -1){
+		perror("signals:");
+	}
+}
+
 int main(){
 	greeting();
-	char buf[BUF_SIZE];
+	signals();
+	enable_raw_mode();
+	char *buf;
 	while(1){
-		path();
-		int len = read(STDIN_FILENO, buf, BUF_SIZE);
-		if(len == 0){
-			putchar('\n');
-			exit(0);
+		if(j_upt_need){
+			update_jobs();
+			j_upt_need = 0;
 		}
-		buf[len-1] = '\0';
+		path();
+		int len = get_line(&buf);
+		if(buf == NULL){
+			putchar('\n');
+			break;
+		}
+
+		if(len == 0){
+			free(buf);
+			continue;
+		}
+
 		Token *tokens = tokenize(buf);
 		ASTNode *root = parse(tokens);
 		execute(root);
 		clean_tokens(tokens);
 		free_ast(root);
+		free(buf);
 	}
+	disable_raw_mode();
 	return 0;
 }

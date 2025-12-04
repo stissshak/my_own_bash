@@ -11,6 +11,7 @@
 
 ///////////////////////////////////////////////////
 
+// Basic creating of nodes
 ASTNode *create_node(NodeType type){
 	ASTNode *node = malloc(sizeof(ASTNode));
 	if(!node){
@@ -21,6 +22,7 @@ ASTNode *create_node(NodeType type){
 	return node;
 }
 
+// We got all parametrs of command, so we can easy create it
 ASTNode *create_command(int argc, char** argv, Redir *redir){
 	ASTNode *node = create_node(NODE_COMMAND);
 	node->command.argv = argv;
@@ -42,6 +44,7 @@ ASTNode *create_unary(NodeType type, ASTNode *child){
 	return node;
 }
 
+// We add redir to end of RedirList
 void add_redir(Redir **head, RedirType rt, const char *file){
 	Redir *r = malloc(sizeof(Redir));
 	if(!r){
@@ -69,6 +72,7 @@ void add_redir(Redir **head, RedirType rt, const char *file){
 void free_ast(ASTNode *root){
 	if(!root) return;
 	switch(root->type){
+		// We need to clean all in argv and list of redirs
 		case NODE_COMMAND:
 			for(int i = 0; i < root->command.argc; ++i)
 				free(root->command.argv[i]);
@@ -96,6 +100,8 @@ void free_ast(ASTNode *root){
 	free(root);
 }
 
+// Funcs to see AST
+
 void print_level(int level){
 	for(int i = 0; i < level; i++){
 	printf("  ");
@@ -112,7 +118,6 @@ const char* get_node_name(NodeType type){
        		case NODE_OR: return "OR";
        		case NODE_BACK: return "BACKGROUND";
        		case NODE_SUBSHELL: return "SUBSHELL";
-       		case NODE_ARIPHM: return "ARITHMETIC";
        		default: return "UNKNOWN";
 	}
 }
@@ -164,6 +169,7 @@ void print_tree(ASTNode *root, int level){
 			break;
 		case NODE_PIPE:
 	        case NODE_SEQ:
+		case NODE_BACK:
 	        case NODE_AND:
 	        case NODE_OR:
 	            print_level(level + 1);
@@ -175,9 +181,7 @@ void print_tree(ASTNode *root, int level){
 	            print_tree(root->binary.right, level + 2);
 	            break;
 	
-	        case NODE_BACK:
 	        case NODE_SUBSHELL:
-	        case NODE_ARIPHM:
 	            print_level(level + 1);
 	            printf("child:\n");
 	            print_tree(root->unary.child, level + 2);

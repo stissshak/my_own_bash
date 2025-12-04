@@ -17,22 +17,20 @@ typedef enum{
 	TOKEN_AND,	// &&
 	TOKEN_BACK,	// &	
 	TOKEN_OR,	// ||
-	TOKEN_PIPE_AMP,	// |&
 	TOKEN_BAR,	// |
 	TOKEN_SEMICOLON,// ;
 	
 	// Grouping
-	TOKEN_LLPAREN,	// ((
-	TOKEN_RRPAREN,	// ))
 	TOKEN_LPAREN,	// (
 	TOKEN_RPAREN,	// )
 	TOKEN_LBRACE,	// {
 	TOKEN_RBRACE,	// }
 	
-	// Other
+	// Tools
 	TOKEN_ERROR,	// ToTracKErrors
 	TOKEN_EOF, 	// EndOfFile
 	
+	// Word
 	TOKEN_WORD, 	// char*
 } TokenType;
 

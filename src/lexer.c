@@ -15,8 +15,8 @@
 const char metachars[] = "<>&|;(){}";
 const char *operators[] = {
     "<<<", "<<", "<&", "<>", "<", ">>", ">&", ">",
-    "&&", "&", "||", "|&", "|", ";",
-    "((", "))", "(", ")", "{", "}",
+    "&&", "&", "||", "|", ";",
+    "(", ")", "{", "}",
     NULL    
 };
 
@@ -29,6 +29,10 @@ int word_end(const char *str, size_t index){
 Token extract_word(const char *str, size_t *index){
 	size_t start = *index;
 	while(word_end(str, *index)) ++*index;
+	if(start == *index){
+		Token token = {TOKEN_EOF, NULL};
+		return token;
+	}
 	char *word = strndup(&str[start], *index - start);
 	if(!word){
 		perror("extract_word: ");
@@ -82,7 +86,7 @@ Token extract_str(const char *str, size_t *index){
 }
 
 Token extract(const char *str, size_t *index, size_t size){
-	while(isspace(str[*index]) && *index < size) ++*index;
+	while(isspace(str[*index]) && *index < size - 1) ++*index;
 	Token comment = {TOKEN_EOF, NULL};
 	if(str[*index] == '#') return comment;
 	else if(str[*index] == '\"') return extract_str(str, index);
@@ -101,7 +105,7 @@ Token *tokenize(const char *str){
 	}
 	while(index < size){
 		result[count] = extract(str, &index, size);
-		if(result[count].type == TOKEN_ERROR) break;
+		if(result[count].type == TOKEN_ERROR || result[count].type == TOKEN_EOF) break;
 		++count;
 	}
 	Token end = {TOKEN_EOF, NULL};

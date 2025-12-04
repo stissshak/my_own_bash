@@ -10,7 +10,6 @@
 ASTNode *parse(Token *);
 ASTNode *parse_seq(Token *, size_t *);
 ASTNode *parse_logic(Token *, size_t *);
-ASTNode *parse_back(Token *, size_t *);
 ASTNode *parse_pipe(Token *, size_t *);
 ASTNode *parse_group(Token *, size_t *);
 ASTNode *parse_command(Token *, size_t *);
