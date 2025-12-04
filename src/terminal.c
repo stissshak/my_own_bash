@@ -8,6 +8,8 @@
 #include <termios.h>
 #include <unistd.h>
 
+extern job_t *j_upd_need;
+
 #define DEFAULT_SIZE 256
 
 struct termios oldt, newt;
@@ -76,6 +78,11 @@ size_t get_line(char **str) {
 	char c;
 	int finished = 0;
 	while (!finished) {
+		
+		if(j_upd_need){
+				//
+		}
+
 		KeyType kt = read_key(&c);
 		switch (kt) {
 			case KEY_CHAR:

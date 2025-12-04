@@ -1,6 +1,11 @@
 // terminal.h
 
+#pragma once
+
+#include "jobs.h"
 #include <sys/types.h>
+
+extern job_t *j_upd_need;
 
 typedef enum {
         KEY_CHAR,

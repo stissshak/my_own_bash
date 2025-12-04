@@ -105,7 +105,7 @@ int main(){
 
 		Token *tokens = tokenize(buf);
 		ASTNode *root = parse(tokens);
-		execute(root);
+		execute(root, 0);
 		clean_tokens(tokens);
 		free_ast(root);
 		free(buf);

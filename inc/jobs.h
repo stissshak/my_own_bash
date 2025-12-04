@@ -1,7 +1,10 @@
 // jobs.h
 
+#pragma once
+
 #include <unistd.h>
 #include <sys/types.h>
+
 
 typedef enum {
 	RUNNING,
