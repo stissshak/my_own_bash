@@ -209,115 +209,41 @@ int execute_command(ASTNode *root, int back){
 }
 
 int execute_pipe(ASTNode *root, int back){
-	int pipefd[2];
-	
-	if(pipe(pipefd) == -1){
-		perror("execute_pipe:");
-		return 1;
-	}
-
-	int l = fork();
-	if(l < 0){
-		perror("execute_pipe:");
-		close(pipefd[0]);
-		close(pipefd[1]);
-		return 1;
-	}
-
-	if(l == 0){
-		signal_setter();
-		setpgid(0, 0);
-
-		close(pipefd[0]);
-		if(dup2(pipefd[1], STDOUT_FILENO) == -1){
-			perror("execute_pipe:");
-			return 1;
-		}
-		close(pipefd[1]);
-		exit(execute(root->binary.left, back));
-	}
-
-	setpgid(l, l);
-
-	int r = fork();
-	if(r < 0){
-		perror("execute_pipe:");
-		close(pipefd[0]);
-		close(pipefd[1]);
-		return 1;
-	}
-
-	if(r == 0){
-		signal_setter();
-		setpgid(0, l);
-
-		close(pipefd[1]);
-		if(dup2(pipefd[0], STDIN_FILENO) == -1){
-			perror("execute_pipe:");
-			return 1;
-		}
-		close(pipefd[0]);
-		exit(execute(root->binary.right, back));
-	}
-
-	setpgid(r, l);
-
-	close(pipefd[0]);
-	close(pipefd[1]);
-
-	if(back){
-		add_job(l, "pipeline", RUNNING);
-		return 0;
-	}
-	else{
-		int shellpid = getpgid(0);
-		tcsetpgrp(STDIN_FILENO, l);
-
-		int status;
-		while(waitpid(-l, &status, WUNTRACED) > 0){
-			if(WEXITSTATUS(status) || WIFSIGNALED(status)){
-				if(waitpid(-l, &status, WNOHANG) <= 0) break;
-			}
-		}
-
-		tcsetpgrp(STDIN_FILENO, shellpid);
-		return WEXITSTATUS(status);
-	}
 }
 
 // Main function that call all other functions
-int execute(ASTNode *root, int back){
+int execute(ASTNode *root){
 	if(!root) return 1;
 	switch(root->type){
 		case(NODE_SEQ):
-			execute(root->binary.left, back);
-			return execute(root->binary.right, back);
+			execute(root->binary.left);
+			return execute(root->binary.right);
 		case(NODE_AND):
-			if(!execute(root->binary.left, back))
-			  	return execute(root->binary.right, back);
+			if(!execute(root->binary.left))
+			  	return execute(root->binary.right);
 			return 1;
 		case(NODE_OR):
-			if(execute(root->binary.left, back))
-				execute(root->binary.right, back);
+			if(execute(root->binary.left))
+				execute(root->binary.right);
 			return 0;
 		case(NODE_BACK):
-			execute(root->binary.left, 1);
-			if(execute(root->binary.right, back)){
+			execute_command(root->binary.left, 1);
+			if(execute_command(root->binary.right, 0)){
 			}
 			return 0;
 		case(NODE_PIPE):
-			return execute_pipe(root, back);
+			return execute_pipe(root, 0);
 		case(NODE_SUBSHELL):
 			pid_t pid = fork();
 			if(pid < 0) return 1;
 			
-			if(pid == 0) exit(execute(root->unary.child, back));
+			if(pid == 0) exit(execute(root->unary.child));
 			
 			int status;
 			wait(&status);
 			return WEXITSTATUS(status);
 		case(NODE_COMMAND):
-			return execute_command(root, back);
+			return execute_command(root, 0);
 		default:
 			return 1;
 	}

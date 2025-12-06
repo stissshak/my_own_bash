@@ -6,7 +6,7 @@
 
 ////////////////////////////////
 
-int execute(ASTNode*, int);
+int execute(ASTNode*);
 int execute_command(ASTNode *, int);
 int execute_pipe(ASTNode*, int);
 int execute_redirect(Redir *);
