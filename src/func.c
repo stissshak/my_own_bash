@@ -130,27 +130,6 @@ int mv(int argc, char *argv[]){
 	return rename(argv[1], argv[2]);
 }
 
-int cat(int argc, char *argv[]){
-	char buf[256];
-	if(argc == 1){
-		ssize_t sread;
-		while(sread = read(STDIN_FILENO, buf, 256)){
-			write(STDOUT_FILENO, buf, sread);
-		}
-		return 0;
-	}
-	if(argc == 2){
-		int fd = open(argv[1], O_RDONLY);
-		ssize_t sread;
-		while(sread = read(fd, buf, 256)){
-			write(STDOUT_FILENO, buf, sread);
-		}
-		return 0;
-	}
-
-	return 0;
-}
-
 /*
 int head(int argc, const char *argv[]){
 

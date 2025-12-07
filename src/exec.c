@@ -20,7 +20,6 @@ Function funcs[] = {
 	{"mkdir", makedir},
 	{"pwd", pwd},
 	{"mv", mv},
-	{"cat", cat},
 	{"jobs", jobs}
 };
 // cd pwd help history exit echo
@@ -177,8 +176,10 @@ int execute_builtin(ASTNode *root){
 
 int execute_command(ASTNode *root, int back){	
 	if(!root) return 1;
-	int builtin = execute_builtin(root);
-	if(builtin >= 0) return builtin;
+	if(root->command.argv){
+		int builtin = execute_builtin(root);
+		if(builtin >= 0) return builtin;
+	}
 
 	pid_t pid = fork();
 	if(pid < 0) return 1;
@@ -187,7 +188,7 @@ int execute_command(ASTNode *root, int back){
 	if(pid == 0){
 		signal_setter();
 
-		execute_redirect(root->command.head);	
+		execute_redirect(root->command.head);
 		execvp(root->command.argv[0], root->command.argv);
 		perror("execvpe: execute_command:");
 		exit(1);

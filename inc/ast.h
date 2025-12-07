@@ -14,6 +14,7 @@ typedef enum {
 	NODE_OR,	// cmd1 || cmd2
 	NODE_BACK,	// cmd1 &
 	NODE_SUBSHELL,	// (...)
+	NODE_GROUP	// {...}
 } NodeType;
 
 typedef enum {

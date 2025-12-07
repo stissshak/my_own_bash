@@ -8,7 +8,13 @@
     - Group
     - Logical
     - Pipe 
+- Buil-in functions:
+    - pwd
+    - jobs, fg, bg
+    - history
+- History
+- Job control
 
 ## Plans to do
-1. Termianl settings (Arrows, colors)
+1. Termianl settings (Colors)
 2. Job control

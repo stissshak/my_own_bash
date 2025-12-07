@@ -6,6 +6,7 @@
 #include "exec.h"
 #include "jobs.h"
 #include "terminal.h"
+#include "history.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -84,6 +85,7 @@ void signals(){
 int main(){
 	greeting();
 	signals();
+	history_init();
 	enable_raw_mode();
 	set_prompt_func(path);
 
@@ -107,6 +109,7 @@ int main(){
 			continue;
 		}
 
+		history_add(buf);
 		Token *tokens = tokenize(buf);
 		ASTNode *root = parse(tokens);
 		execute(root);
@@ -114,6 +117,7 @@ int main(){
 		free_ast(root);
 		free(buf);
 	}
+	history_free();
 	disable_raw_mode();
 	return 0;
 }

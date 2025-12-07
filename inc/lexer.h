@@ -8,7 +8,7 @@
 ////////////////////////////////////
 
 Token *tokenize(const char*);
-Token extract(const char*, size_t*, size_t);
+Token extract(const char*, size_t*);
 Token extract_str(const char*, size_t*);
 Token extract_op(const char*, size_t*);
 Token extract_word(const char*, size_t*);

@@ -67,8 +67,9 @@ Token extract_op(const char *str, size_t *index){
 
 Token extract_str(const char *str, size_t *index){
 	size_t start = *index;
+	char s = str[start];
 	++*index;
-	while(str[*index] != '\0' && str[*index] != '\"') ++*index;
+	while(str[*index] != '\0' && str[*index] != s) ++*index;
 	if(str[*index] == '\0'){
 		fprintf(stderr, "Not even closed \"\n");
 		Token token = {TOKEN_ERROR, str + *index};
@@ -85,36 +86,37 @@ Token extract_str(const char *str, size_t *index){
 	return token;
 }
 
-Token extract(const char *str, size_t *index, size_t size){
-	while(isspace(str[*index]) && *index < size - 1) ++*index;
-	Token comment = {TOKEN_EOF, NULL};
-	if(str[*index] == '#') return comment;
-	else if(str[*index] == '\"') return extract_str(str, index);
+Token extract(const char *str, size_t *index){
+	while(isspace(str[*index]) && str[*index] != '\0') ++*index;
+	Token end = {TOKEN_EOF, NULL};
+	if(str[*index] == '\0' || str[*index] == '\n' || str[*index] == '#') return end;
+	else if(str[*index] == '\"' || str[*index] == '\'') return extract_str(str, index);
 	else if(strchr(metachars, str[*index])) return extract_op(str, index);
 	return extract_word(str, index);
 }
 
 // Creating Array of Tokens and extracting every Token from string
 Token *tokenize(const char *str){
-	size_t size = 0, index = 0, count = 0;
-	while(str[size] != '\n' && str[size] != '\0' && str[size] != '#') ++size;
-	Token *result = malloc((size+1) * sizeof(Token));
+	size_t index = 0, count = 0;
+	size_t size = 16;
+	
+	Token *result = malloc(size * sizeof(Token));
 	if(!result){
 		perror("tokenize");
 		return NULL;
 	}
-	while(index < size){
-		result[count] = extract(str, &index, size);
+	while(1){
+		if(count >= size - 1){
+			size *= 2;
+			result = realloc(result, size * sizeof(Token));
+			if(!result){
+				perror("tokenize");
+				return NULL;
+			}
+		}
+		result[count] = extract(str, &index);
 		if(result[count].type == TOKEN_ERROR || result[count].type == TOKEN_EOF) break;
 		++count;
-	}
-	Token end = {TOKEN_EOF, NULL};
-	result[count] = end;
-
-	result = realloc(result, sizeof(Token)*(count+1));
-	if(!result){
-		perror("tokenize");
-		return NULL;
 	}
 	return result;
 }
@@ -123,7 +125,7 @@ Token *tokenize(const char *str){
 
 // Easy output of every Token
 void print_tokens(Token *tokens){
-	for(size_t i = 0; tokens[i].type != TOKEN_EOF; ++i){
+	for(size_t i = 0; tokens[i].type != TOKEN_EOF || tokens[i].type != TOKEN_ERROR; ++i){
 		printf("%d - %s\n", (int)tokens[i].type, tokens[i].op);
 	}
 }

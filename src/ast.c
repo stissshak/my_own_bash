@@ -94,6 +94,7 @@ void free_ast(ASTNode *root){
 			break;
 		case NODE_BACK:
 		case NODE_SUBSHELL:
+		case NODE_GROUP:
 			free_ast(root->unary.child);
 			break;
 	}
@@ -118,6 +119,7 @@ const char* get_node_name(NodeType type){
        		case NODE_OR: return "OR";
        		case NODE_BACK: return "BACKGROUND";
        		case NODE_SUBSHELL: return "SUBSHELL";
+		case NODE_GROUP: return "GROUP";
        		default: return "UNKNOWN";
 	}
 }
@@ -182,6 +184,7 @@ void print_tree(ASTNode *root, int level){
 	            break;
 	
 	        case NODE_SUBSHELL:
+		case NODE_GROUP:
 	            print_level(level + 1);
 	            printf("child:\n");
 	            print_tree(root->unary.child, level + 2);

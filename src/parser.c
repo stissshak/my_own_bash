@@ -69,7 +69,14 @@ int is_operator(Token t){
 // Wrapper
 ASTNode *parse(Token *tokens){
 	size_t index = 0;
-	return parse_seq(tokens, &index);
+	ASTNode *root = parse_seq(tokens, &index);
+	
+	if(!match(tokens[index], TOKEN_EOF)){
+		fprintf(stderr, "parse: unexepted token '%s'\n", tokens[index].op);
+		free_ast(root);
+		return NULL;
+	}
+	return root;
 }
 
 // Parsing ; and & - with the lowest priotity
@@ -122,14 +129,14 @@ ASTNode *parse_group(Token *tokens, size_t *index){
 	if(match_lparen(tokens[*index].type)){
 		TokenType open = tokens[*index].type;
 		TokenType close = get_matching_close(open);
-		NodeType nd = NODE_SUBSHELL;
+		NodeType nd = match(tokens[*index], TOKEN_LPAREN) ? NODE_SUBSHELL : NODE_GROUP;
 		
 		++*index;
 		ASTNode *child = parse_seq(tokens, index);
 
 		if(!match(tokens[*index], close)){
 			fprintf(stderr, "Error: expected closing bracket\n");
-			exit(1);
+			return NULL;
 		}
 
 		++*index;
@@ -180,10 +187,12 @@ ASTNode *parse_command(Token *tokens, size_t *index){
 		}
 	}
 
-	if(argc == 0){
-		return NULL;
+	if(argc == 0 && redirlist){
+		argv = malloc(sizeof(char*));
+		argv[0] = NULL;
+		return create_command(argc, argv, redirlist);
 	}
-
+	if(argc == 0) return NULL;
 	return create_command(argc, argv, redirlist);
 }
 

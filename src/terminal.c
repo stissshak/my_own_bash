@@ -2,9 +2,11 @@
 
 #include "terminal.h"
 #include "jobs.h"
+#include "history.h"
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <errno.h>
 #include <termios.h>
 #include <unistd.h>
@@ -34,6 +36,7 @@ KeyType read_key(char *out_char) {
 	char c;
 
 	if (read(STDIN_FILENO, &c, 1) < 1) return KEY_NONE;
+	write(STDOUT_FILENO, &c, 1);
 
 	if (c == 4) return KEY_CTRL_D;
 	if (c == 3) return KEY_CTRL_C;
@@ -93,6 +96,7 @@ size_t get_line(char **str) {
 
 	char c;	
 	int finished = 0;
+	history_reset_cursor();
 	while (!finished) {
 		KeyType kt = read_key(&c);
 		
@@ -177,24 +181,27 @@ size_t get_line(char **str) {
 				write(STDOUT_FILENO, "\x1b[2J\x1b[H", 7);
 				break;
 			case KEY_UP:
-				for (size_t i = 0; i < len; ++i) {
-					if (buf[i] >= 'a' && buf[i] <= 'z')
-						buf[i] -= 'a' - 'A';
-				}
-				write(STDOUT_FILENO, "\x1b[2K", 4);
-				write(STDOUT_FILENO, "\x1b[1G", 4);
-				write(STDOUT_FILENO, buf, len);
+				const char *next = history_next();
+				if(next){
 
+					write(STDOUT_FILENO, "\r\x1b[K", 4);
+					reprint_greeting();
+					strcpy(buf, next);
+					len = strlen(next);
+					cursor = len;
+					write(STDOUT_FILENO, buf, len);
+				}	
 				break;
 			case KEY_DOWN:
-				for (size_t i = 0; i < len; ++i) {
-					if (buf[i] >= 'A' && buf[i] <= 'Z')
-						buf[i] += 'a' - 'A';
+				const char *prev = history_prev();
+				if(prev){
+					write(STDOUT_FILENO, "\r\x1b[K", 4);
+					reprint_greeting();
+					strcpy(buf, prev);
+					len = strlen(prev);
+					cursor = len;
+					write(STDOUT_FILENO, buf, len);
 				}
-				write(STDOUT_FILENO, "\x1b[2K", 4);
-				write(STDOUT_FILENO, "\x1b[1G", 4);
-				write(STDOUT_FILENO, buf, len);
-
 				break;
 			case KEY_LEFT:
 				if (cursor > 0) {
