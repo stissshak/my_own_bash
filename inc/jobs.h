@@ -29,3 +29,5 @@ int remove_job(int);
 job_t *find_job(int);
 void update_jobs();
 int jobs(int, char*[]);
+int fg(int, char*[]);
+int bg(int, char*[]);

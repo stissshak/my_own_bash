@@ -172,6 +172,7 @@ const char *history_prev(){
 
 const char *history_next(){
 	if(!cursor){
+		if(!head) return NULL;
 		cursor = head;
 		return cursor->cmd;
 	}

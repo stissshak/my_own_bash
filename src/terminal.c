@@ -24,7 +24,7 @@ void set_prompt_func(void (*f)(void)){
 void enable_raw_mode() {
 	tcgetattr(STDIN_FILENO, &oldt);
 	newt = oldt;
-	newt.c_lflag &= ~(ICANON | ECHO);
+	newt.c_lflag &= ~(ICANON | ECHO | ISIG);
 	tcsetattr(STDIN_FILENO, TCSADRAIN, &newt);
 }
 
@@ -36,7 +36,6 @@ KeyType read_key(char *out_char) {
 	char c;
 
 	if (read(STDIN_FILENO, &c, 1) < 1) return KEY_NONE;
-	write(STDOUT_FILENO, &c, 1);
 
 	if (c == 4) return KEY_CTRL_D;
 	if (c == 3) return KEY_CTRL_C;
@@ -98,8 +97,7 @@ size_t get_line(char **str) {
 	int finished = 0;
 	history_reset_cursor();
 	while (!finished) {
-		KeyType kt = read_key(&c);
-		
+		KeyType kt = read_key(&c);		
 		if (kt == KEY_NONE){
 			if (j_upt_need){
 				j_upt_need = 0;
@@ -179,13 +177,18 @@ size_t get_line(char **str) {
 			case KEY_CTRL_Z:
 			case KEY_CTRL_L:
 				write(STDOUT_FILENO, "\x1b[2J\x1b[H", 7);
+				reprint_greeting();
 				break;
 			case KEY_UP:
 				const char *next = history_next();
 				if(next){
-
-					write(STDOUT_FILENO, "\r\x1b[K", 4);
-					reprint_greeting();
+					if(cursor > 0){
+						char esc[16];
+						int n = snprintf(esc, sizeof(esc), "\x1b[%zuD", cursor);
+						write(STDOUT_FILENO, esc, n);
+					}	
+			
+					write(STDOUT_FILENO, "\x1b[K", 3);
 					strcpy(buf, next);
 					len = strlen(next);
 					cursor = len;
@@ -195,8 +198,13 @@ size_t get_line(char **str) {
 			case KEY_DOWN:
 				const char *prev = history_prev();
 				if(prev){
-					write(STDOUT_FILENO, "\r\x1b[K", 4);
-					reprint_greeting();
+					if(cursor > 0){
+						char esc[16];
+						int n = snprintf(esc, sizeof(esc), "\x1b[%zuD", cursor);
+						write(STDOUT_FILENO, esc, n);
+					}
+
+					write(STDOUT_FILENO, "\x1b[K", 3);
 					strcpy(buf, prev);
 					len = strlen(prev);
 					cursor = len;

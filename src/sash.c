@@ -1,5 +1,6 @@
 // bash.c
 #define _DEFAULT_SOURCE
+#define _XOPEN_SOURCE 500
 
 #include "lexer.h"
 #include "parser.h"
@@ -22,7 +23,7 @@
 #define BUF_SIZE 1024
 #define DSS 128
 
-extern volatile sig_atomic_t j_upt_need = 0;
+volatile sig_atomic_t j_upt_need = 0;
 
 void signal_handler(int sig){
 	(void)sig;
@@ -86,11 +87,12 @@ int main(){
 	greeting();
 	signals();
 	history_init();
-	enable_raw_mode();
+	
 	set_prompt_func(path);
 
 	char *buf;
 	while(1){
+		enable_raw_mode();
 		path();
 		int len = get_line(&buf);
 		
@@ -112,12 +114,12 @@ int main(){
 		history_add(buf);
 		Token *tokens = tokenize(buf);
 		ASTNode *root = parse(tokens);
+		disable_raw_mode();
 		execute(root);
 		clean_tokens(tokens);
 		free_ast(root);
 		free(buf);
 	}
 	history_free();
-	disable_raw_mode();
 	return 0;
 }

@@ -1,5 +1,8 @@
 // exec.c
 
+#define _POSIX_C_SOURCE 200809L
+
+
 #include "jobs.h"
 #include "func.h"
 #include "exec.h"
@@ -16,17 +19,27 @@
 Function funcs[] = {
 	{"echo", echo},
 	{"cd", cd},
-	{"touch", touch},
-	{"mkdir", makedir},
 	{"pwd", pwd},
-	{"mv", mv},
-	{"jobs", jobs}
+	{"jobs", jobs},
+	{"fg", fg},
+	{"bg", bg},
+	{"exit", bexit}
 };
 // cd pwd help history exit echo
 // jobs fg bg kill
 
 void signal_setter(){
 	setpgid(0, 0);
+
+	sigset_t mask;
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGINT);
+	sigaddset(&mask, SIGQUIT);
+	sigaddset(&mask, SIGTSTP);
+	sigaddset(&mask, SIGTTIN);
+	sigaddset(&mask, SIGTTOU);
+	sigprocmask(SIG_UNBLOCK, &mask, NULL);
+
 	signal(SIGINT, SIG_DFL);
         signal(SIGQUIT, SIG_DFL);
         signal(SIGTSTP, SIG_DFL);
@@ -174,7 +187,7 @@ int execute_builtin(ASTNode *root){
 	return -1;
 }
 
-int execute_command(ASTNode *root, int back){	
+int execute_command(ASTNode *root){	
 	if(!root) return 1;
 	if(root->command.argv){
 		int builtin = execute_builtin(root);
@@ -196,25 +209,134 @@ int execute_command(ASTNode *root, int back){
 
 	setpgid(pid, pid);
 
-	if(back) add_job(pid, root->command.argv[0], RUNNING);
-	else{
-		tcsetpgrp(STDIN_FILENO, pid);
+	tcsetpgrp(STDIN_FILENO, pid);
 		
-		int status;
-		waitpid(pid, &status, WUNTRACED);
+	int status;
+	waitpid(pid, &status, WUNTRACED);
+	tcsetpgrp(STDIN_FILENO, shellpgid);
 
-		tcsetpgrp(STDIN_FILENO, shellpgid);
-		return WEXITSTATUS(status);
+	if(WIFSTOPPED(status)){
+		int id = add_job(pid, root->command.argv[0], STOPPED);
+		printf("\n[%d] Stopped\t%s\n", id, root->command.argv[0]);
+		return 128 + WSTOPSIG(status);
 	}
+
+	return WEXITSTATUS(status);
+}
+
+int execute_back(ASTNode *root){
+	pid_t pid = fork();
+	if(pid < 0) return 1;
+
+	if(pid == 0){
+		signal_setter();
+		int status = execute(root);
+		exit(status);	
+	}
+
+	setpgid(pid, pid);
+	add_job(pid, "background", RUNNING);
 	return 0;
 }
 
-int execute_pipe(ASTNode *root, int back){
+static int flatten_pipe(ASTNode *root, ASTNode **arr, int max){
+	if(!root) return 0;
+	if(root->type != NODE_PIPE){
+		arr[0] = root;
+		return 1;
+	}
+	int left = flatten_pipe(root->binary.left, arr, max);
+	int right = flatten_pipe(root->binary.right, arr + left, max - left);
+	return left + right;
+}
+
+int execute_pipe(ASTNode *root){
+	ASTNode *arr[64];
+	int n = flatten_pipe(root, arr, 64);
+	if(n < 2) return execute(arr[0]);
+
+	int pipes[n-1][2];
+	for(int i = 0; i < n-1; ++i){
+		if(pipe(pipes[i]) < 0){
+			perror("execute_pipe: pipe");
+			for(int j = 0; j < i; ++j){
+				close(pipes[j][0]);
+				close(pipes[j][1]);
+			}
+			return 1;
+		}
+	}
+
+	int shellpgid = getpgid(0);
+	pid_t pgid = 0;
+
+	pid_t pids[n];
+	for(int i = 0; i < n; ++i){
+		pids[i] = fork();
+		if(pids[i] < 0){
+			perror("execute_pipe: fork");
+			return 1;
+		}
+		if(pids[i] == 0){
+			setpgid(0, pgid);
+			signal_setter();
+			if(i > 0){
+				dup2(pipes[i-1][0], STDIN_FILENO);
+			}
+			if(i < n-1){
+				dup2(pipes[i][1], STDOUT_FILENO);
+			}
+
+			for(int j = 0; j < n-1; ++j){
+				close(pipes[j][0]);
+				close(pipes[j][1]);
+			}
+
+			if(arr[i]->type == NODE_COMMAND){
+				execute_redirect(arr[i]->command.head);
+				for(size_t j = 0; j < sizeof(funcs)/sizeof(Function); ++j){
+					if(!strcmp(arr[i]->command.argv[0], funcs[j].name)){
+						exit(funcs[j].func(arr[i]->command.argc, arr[i]->command.argv));
+					}
+				}
+
+
+				execvp(arr[i]->command.argv[0], arr[i]->command.argv);
+				perror("execute_pipe: exec");
+				exit(127);
+			}
+
+			exit(execute(arr[i]));
+		}
+		if(i == 0) pgid = pids[0];
+		setpgid(pids[i], pgid);
+	}
+
+	tcsetpgrp(STDIN_FILENO, pgid);
+
+	for(int i = 0; i < n-1; ++i){
+		close(pipes[i][0]);
+		close(pipes[i][1]);
+	}
+
+	int status;
+	for(int i = 0; i < n; ++i){
+		waitpid(pids[i], &status, 0);
+	}
+
+	tcsetpgrp(STDIN_FILENO, shellpgid);
+
+	if(WIFEXITED(status))
+		return WEXITSTATUS(status);
+	if(WIFSIGNALED(status))
+		return 128 + WTERMSIG(status);
+	return 1;
 }
 
 // Main function that call all other functions
 int execute(ASTNode *root){
 	if(!root) return 1;
+	int status;
 	switch(root->type){
 		case(NODE_SEQ):
 			execute(root->binary.left);
@@ -224,27 +346,32 @@ int execute(ASTNode *root){
 			  	return execute(root->binary.right);
 			return 1;
 		case(NODE_OR):
-			if(execute(root->binary.left))
-				execute(root->binary.right);
-			return 0;
+			status = execute(root->binary.left);
+			if(status != 0) return execute(root->binary.right);
+			return status;
 		case(NODE_BACK):
-			execute_command(root->binary.left, 1);
-			if(execute_command(root->binary.right, 0)){
+			execute_back(root->binary.left);
+			if(root->binary.right){
+				return execute(root->binary.right);
 			}
 			return 0;
 		case(NODE_PIPE):
-			return execute_pipe(root, 0);
+			return execute_pipe(root);
 		case(NODE_SUBSHELL):
 			pid_t pid = fork();
 			if(pid < 0) return 1;
 			
-			if(pid == 0) exit(execute(root->unary.child));
+			if(pid == 0){
+				signal_setter();
+				exit(execute(root->unary.child));
+			}
 			
-			int status;
 			wait(&status);
 			return WEXITSTATUS(status);
+		case(NODE_GROUP):
+			return execute(root->unary.child);
 		case(NODE_COMMAND):
-			return execute_command(root, 0);
+			return execute_command(root);
 		default:
 			return 1;
 	}

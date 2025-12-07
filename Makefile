@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS= -Wall -Wextra -pedantic -std=c2x -Iinc 
+CFLAGS= -Wall -Wextra -pedantic -std=c2x -Iinc -Wno-unused-result 
 
 
 LIBS=
@@ -14,7 +14,7 @@ BIN_DIR = bin
 SRC=$(wildcard $(SRC_DIR)/*.c)
 OBJ=$(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRC))
 DEP=$(patsubst $(SRC_DIR)/%.c, $(DEP_DIR)/%.d, $(SRC))
-EXE=$(BIN_DIR)/bash
+EXE=$(BIN_DIR)/sash
 
 all: debug
 

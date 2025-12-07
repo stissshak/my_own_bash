@@ -1,6 +1,8 @@
 // func.c
 
 #include "func.h"
+#include "history.h"
+#include "terminal.h"
 
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -8,6 +10,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 int echo(int argc, char *argv[]){
 	bool new_line = true, space = true;
@@ -63,91 +66,23 @@ int cd(int argc, char *argv[]){
 	}
 	return 1;
 }
-/*
-int ls(int argc, const char *argv[]){
-	return 0;
-}
-*/
-int touch(int argc, char *argv[]){
-	if(argc == 1){
-		printf("touch: missing file operand\nTry 'touch --help' for more information.\n");
-		return 1;
-	}
-	int i = 1;
-	while(i < argc){
-		int fd = creat(argv[i], 0666);
-		if(fd < 0){
-			printf("touch: can't create file %s\n", argv[i]);
-			return 1;
-		}
-		++i;
-	}
-	return 0;
-}
 
-int makedir(int argc, char *argv[]){
-	if(argc == 1){
-		printf("mkdir: missing operand\n");
-		return 1;	
-	}
-	int result = 0, i = 1;
-	struct stat st = {0};
-	while(i < argc){
-		if(stat(argv[i], &st) == -1){
-			mkdir(argv[i], 0700);
-		}
-		else{
-			printf("mkdir: cannot create directory %s: File exists\n", argv[i]);
-			result = 1;
-		}
-		++i;
-	}
-	return result;
-}
-
-/*
-int grep(int argc, const char *argv[]){
-
-	return 0;
-}
-*/
 int pwd(int argc, char *argv[]){
+	(void)argc; (void)argv;
 	char pwd[256];
 	getcwd(pwd, 256);
 	printf("%s\n", pwd);
 	return 0;
 }
 
-int mv(int argc, char *argv[]){
-	if(argc == 1){
-		printf("mv: missing file operand\n");
-		return 1;
+int bexit(int argc, char *argv[]){
+	int code = 0;
+	if(argc > 1){
+		code = atoi(argv[1]);
 	}
-	if(argc == 2){
-		printf("mv: missing destination file operand after \'%s\'\n", argv[1]);
-		return 1;
-	}
-	return rename(argv[1], argv[2]);
+
+	history_free();
+	disable_raw_mode();
+	exit(code);
+	return code;
 }
-
-/*
-int head(int argc, const char *argv[]){
-
-	return 0;
-}
-
-int tail(int argc, const char *argv[]){
-
-	return 0;
-}
-
-
-int clear(int argc, const char *argv[]){
-
-	return 0;
-}
-
-int cp(int argc, const char *argv[]){
-	return 0;
-}
-*/
