@@ -31,3 +31,4 @@ void update_jobs();
 int jobs(int, char*[]);
 int fg(int, char*[]);
 int bg(int, char*[]);
+int bkill(int, char*[]);

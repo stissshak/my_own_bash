@@ -12,11 +12,14 @@ typedef enum{
 	TOKEN_GTGT,	// >>
 	TOKEN_RIGHT_AMP,// >&
 	TOKEN_GT,	// >
+	TOKEN_AMP_GTGT, // &>>
+	TOKEN_AMP_GT, 	// &>
 
 	// Pipes and logic
 	TOKEN_AND,	// &&
 	TOKEN_BACK,	// &	
 	TOKEN_OR,	// ||
+	TOKEN_BAR_AMP, 	// |&
 	TOKEN_BAR,	// |
 	TOKEN_SEMICOLON,// ;
 	

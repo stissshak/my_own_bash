@@ -180,4 +180,40 @@ int bg(int argc, char *argv[]){
 	return 0;
 }
 
+int bkill(int argc, char *argv[]){
+	if(argc < 2){
+		fprintf(stderr, "kill: need job id\n");
+		return 1;
+	}
+
+	int sig = SIGTERM;
+	int arg_start = 1;
+
+	if(argv[1][0] == '-'){
+		sig = atoi(argv[1] + 1);
+		if(sig == 0) sig = SIGTERM;
+		arg_start = 2;
+	}
+
+	if(argc <= arg_start){
+		fprintf(stderr, "kill: need pid or %%job\n");
+		return 1;
+	}
+
+	if(argv[arg_start][0] == '%'){
+		int job_id = atoi(argv[arg_start] + 1);
+		job_t *job = find_job(job_id);
+		if(!job){
+			fprintf(stderr, "kill: job %d not found\n", job_id);
+			return 1;
+		}
+		kill(-job_id, sig);
+	}else{
+		pid_t pid = atoi(argv[arg_start]);
+		kill(pid, sig);
+	}
+	return 0;
+
+
+}
 

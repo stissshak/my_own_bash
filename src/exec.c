@@ -4,6 +4,7 @@
 
 
 #include "jobs.h"
+#include "history.h"
 #include "func.h"
 #include "exec.h"
 #include "parser.h"
@@ -20,17 +21,18 @@ Function funcs[] = {
 	{"echo", echo},
 	{"cd", cd},
 	{"pwd", pwd},
+	{"history", history},
 	{"jobs", jobs},
 	{"fg", fg},
 	{"bg", bg},
-	{"exit", bexit}
+	{"kill", bkill},
+	{"exit", bexit},
+	{"help", help},
 };
 // cd pwd help history exit echo
 // jobs fg bg kill
 
 void signal_setter(){
-	setpgid(0, 0);
-
 	sigset_t mask;
 	sigemptyset(&mask);
 	sigaddset(&mask, SIGINT);
@@ -154,6 +156,42 @@ int execute_redirect(Redir *redirs){
 				}
 				close(file);
 				break;
+			case(OUT_ALL_END):
+				file = open(head->file, O_CREAT | O_WRONLY | O_APPEND, 0666);
+				if(file < 0){
+					perror("redirect: open");
+					return 1;
+				}
+				if(dup2(file, STDOUT_FILENO) < 0){
+					perror("redirect: open");
+					close(file);
+					return 1;
+				}
+				if(dup2(file, STDERR_FILENO) < 0){
+					perror("redirect: open");
+					close(file);
+					return 1;
+				}
+				close(file);
+				break;
+			case(OUT_ALL):
+				file = open(head->file, O_CREAT | O_WRONLY | O_TRUNC, 0666);
+				if(file < 0){
+					perror("redirect: open");
+					return 1;
+				}
+				if(dup2(file, STDOUT_FILENO) < 0){
+					perror("redirect: open");
+					close(file);
+					return 1;
+				}
+				if(dup2(file, STDERR_FILENO) < 0){
+					perror("redirect: open");
+					close(file);
+					return 1;
+				}
+				close(file);
+				break;
 			default:
 				return 1;
 		}
@@ -168,7 +206,6 @@ int execute_builtin(ASTNode *root){
 			int saved_stdin = dup(STDIN_FILENO);	
 			int saved_stdout = dup(STDOUT_FILENO);	
 			int saved_stderr = dup(STDERR_FILENO);	
-			
 				
 			execute_redirect(root->command.head);
 			int status = funcs[i].func(root->command.argc, root->command.argv);
@@ -187,6 +224,12 @@ int execute_builtin(ASTNode *root){
 	return -1;
 }
 
+static int is_foreground(void) {
+	pid_t our_pgid = getpgrp();
+	pid_t fg_pgid = tcgetpgrp(STDIN_FILENO);
+	return our_pgid == fg_pgid;
+}
+
 int execute_command(ASTNode *root){	
 	if(!root) return 1;
 	if(root->command.argv){
@@ -199,28 +242,31 @@ int execute_command(ASTNode *root){
 	
 	int shellpgid = getpgid(0);
 	if(pid == 0){
+		setpgid(0, 0);
 		signal_setter();
-
 		execute_redirect(root->command.head);
 		execvp(root->command.argv[0], root->command.argv);
 		perror("execvpe: execute_command:");
-		exit(1);
+		exit(127);
 	}
 
 	setpgid(pid, pid);
 
-	tcsetpgrp(STDIN_FILENO, pid);
-		
+			
 	int status;
-	waitpid(pid, &status, WUNTRACED);
-	tcsetpgrp(STDIN_FILENO, shellpgid);
-
-	if(WIFSTOPPED(status)){
-		int id = add_job(pid, root->command.argv[0], STOPPED);
-		printf("\n[%d] Stopped\t%s\n", id, root->command.argv[0]);
-		return 128 + WSTOPSIG(status);
+	
+	if(is_foreground()){
+		tcsetpgrp(STDIN_FILENO, pid);
+		waitpid(pid, &status, WUNTRACED);
+		tcsetpgrp(STDIN_FILENO, shellpgid);
+		
+		if(WIFSTOPPED(status)){
+			int id = add_job(pid, root->command.argv[0], STOPPED);
+			printf("\n[%d] Stopped\t%s\n", id, root->command.argv[0]);
+			return 128 + WSTOPSIG(status);
+		}
 	}
-
+	else waitpid(pid, &status, 0);
 	return WEXITSTATUS(status);
 }
 
@@ -229,6 +275,7 @@ int execute_back(ASTNode *root){
 	if(pid < 0) return 1;
 
 	if(pid == 0){
+		setpgid(0, 0);
 		signal_setter();
 		int status = execute(root);
 		exit(status);	
@@ -275,6 +322,14 @@ int execute_pipe(ASTNode *root){
 		pids[i] = fork();
 		if(pids[i] < 0){
 			perror("execute_pipe: fork");
+			for(int j = 0; j < n-1; ++j){
+				close(pipes[j][0]);
+				close(pipes[j][1]);
+			}
+			for(int j = 0; j < i; ++j){
+				kill(pids[j], SIGTERM);
+				waitpid(pids[j], NULL, 0);
+			}
 			return 1;
 		}
 		if(pids[i] == 0){
@@ -300,19 +355,19 @@ int execute_pipe(ASTNode *root){
 					}
 				}
 
-
 				execvp(arr[i]->command.argv[0], arr[i]->command.argv);
 				perror("execute_pipe: exec");
 				exit(127);
 			}
-
 			exit(execute(arr[i]));
 		}
 		if(i == 0) pgid = pids[0];
 		setpgid(pids[i], pgid);
 	}
 
-	tcsetpgrp(STDIN_FILENO, pgid);
+	int foreground = is_foreground();
+
+	if(foreground) tcsetpgrp(STDIN_FILENO, pgid);
 
 	for(int i = 0; i < n-1; ++i){
 		close(pipes[i][0]);
@@ -321,11 +376,16 @@ int execute_pipe(ASTNode *root){
 
 	int status;
 	for(int i = 0; i < n; ++i){
-		waitpid(pids[i], &status, 0);
+		waitpid(pids[i], &status, foreground ? WUNTRACED : 0);
 	}
 
-	tcsetpgrp(STDIN_FILENO, shellpgid);
-
+	if(foreground) tcsetpgrp(STDIN_FILENO, shellpgid);
+	
+	if(foreground && WIFSTOPPED(status)){
+		int job = add_job(pgid, "pipeline", STOPPED);
+		printf("\n[%d] Stopped\t pipeline\n", job);
+		return 128 + WSTOPSIG(status);
+	}
 	if(WIFEXITED(status))
 		return WEXITSTATUS(status);
 	if(WIFSIGNALED(status))
@@ -358,16 +418,32 @@ int execute(ASTNode *root){
 		case(NODE_PIPE):
 			return execute_pipe(root);
 		case(NODE_SUBSHELL):
+			int shellpgid = getpgid(0);
 			pid_t pid = fork();
 			if(pid < 0) return 1;
 			
 			if(pid == 0){
+				setpgid(0, 0);
 				signal_setter();
 				exit(execute(root->unary.child));
 			}
 			
-			wait(&status);
-			return WEXITSTATUS(status);
+			setpgid(pid, pid);
+			
+			int foreground = is_foreground();
+
+			if(foreground) tcsetpgrp(STDIN_FILENO, pid);
+
+			waitpid(pid, &status, foreground ? WUNTRACED : 0);
+			if(foreground) tcsetpgrp(STDIN_FILENO, shellpgid);
+	
+			if(foreground && WIFSTOPPED(status)){
+				add_job(pid, "subshell", STOPPED);
+				return 128 + WSTOPSIG(status);
+			}
+			if(WIFEXITED(status)) return WEXITSTATUS(status);
+			if(WIFSIGNALED(status)) return 128 + WTERMSIG(status);
+			return 1;
 		case(NODE_GROUP):
 			return execute(root->unary.child);
 		case(NODE_COMMAND):

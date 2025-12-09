@@ -19,3 +19,4 @@ int echo(int, char*[]);
 int cd(int, char*[]);
 int pwd(int, char*[]);
 int bexit(int, char*[]);
+int help(int, char*[]);

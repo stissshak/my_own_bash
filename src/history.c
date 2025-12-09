@@ -179,4 +179,14 @@ const char *history_next(){
 	if(cursor->next) cursor = cursor->next;
 	return cursor->cmd;
 }
-	
+/////////////////////////////////////////
+
+int history(int argc, char *argv[]){
+	(void)argc; (void)argv;
+	HistoryList *buf = head;
+	while(buf){
+		printf("%s\n", buf->cmd);
+		buf = buf->next;
+	}
+	return 0;
+}

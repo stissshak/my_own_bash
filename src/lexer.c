@@ -14,8 +14,8 @@
 
 const char metachars[] = "<>&|;(){}";
 const char *operators[] = {
-    "<<<", "<<", "<&", "<>", "<", ">>", ">&", ">",
-    "&&", "&", "||", "|", ";",
+    "<<<", "<<", "<&", "<>", "<", ">>", ">&", ">", "&>>", "&>",
+    "&&", "&", "||", "|&", "|", ";",
     "(", ")", "{", "}",
     NULL    
 };
@@ -66,8 +66,8 @@ Token extract_op(const char *str, size_t *index){
 }
 
 Token extract_str(const char *str, size_t *index){
-	size_t start = *index;
-	char s = str[start];
+	size_t start = *index + 1;
+	char s = str[start-1];
 	++*index;
 	while(str[*index] != '\0' && str[*index] != s) ++*index;
 	if(str[*index] == '\0'){
@@ -76,7 +76,7 @@ Token extract_str(const char *str, size_t *index){
 		return token;
 	}
 	++*index;
-	char *word = strndup(&str[start], *index - start);
+	char *word = strndup(&str[start], *index - start - 1);
 	if(!word){
 		perror("extract_str: ");
 		Token token = {TOKEN_ERROR, str + *index};
@@ -125,7 +125,7 @@ Token *tokenize(const char *str){
 
 // Easy output of every Token
 void print_tokens(Token *tokens){
-	for(size_t i = 0; tokens[i].type != TOKEN_EOF || tokens[i].type != TOKEN_ERROR; ++i){
+	for(size_t i = 0; tokens[i].type != TOKEN_EOF && tokens[i].type != TOKEN_ERROR; ++i){
 		printf("%d - %s\n", (int)tokens[i].type, tokens[i].op);
 	}
 }

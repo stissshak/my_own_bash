@@ -25,7 +25,9 @@ typedef enum {
 	IN_OUT,		// <
 	OUT_END,	// >>
 	OUT_ERR,	// >&
-	OUT_NEW		// >
+	OUT_NEW,	// >
+	OUT_ALL_END, 	// &>>
+	OUT_ALL, 	// &>
 } RedirType;
 
 typedef struct Redir{

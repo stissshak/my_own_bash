@@ -8,6 +8,7 @@
 #include "jobs.h"
 #include "terminal.h"
 #include "history.h"
+#include "colors.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -32,7 +33,14 @@ void signal_handler(int sig){
 
 void greeting(){
 	struct timespec tv = {.tv_sec = 0, .tv_nsec = PRINT_TIME};
-	char greeting[] = "Welcome to stissshak's bash - sash!\nMy bash is not that big like fish or zsh, but it's my project\n";
+	char greeting[] = "Welcome to stissshak's bash - "
+		COLOR_BOLD_CYAN"sash!\n"COLOR_RESET
+		"My bash is not that big like "
+		COLOR_BOLD_GREEN"fish"COLOR_RESET
+		" or "
+		COLOR_BOLD_RED"zsh,"COLOR_RESET 
+		" but it's "
+		COLOR_BOLD_CYAN"my project\n"COLOR_RESET;
 	for(size_t i = 0; i < sizeof(greeting); ++i){
 		putchar(greeting[i]);
 		nanosleep(&tv, NULL);
@@ -59,7 +67,7 @@ void path(){
 		strcpy(pwd, buf);
 	}
 
-	printf("%s@%s %s> ", pw->pw_name, host, pwd);
+	printf(COLOR_GREEN"%s"COLOR_RESET"@%s "COLOR_GREEN"%s"COLOR_RESET"> ", pw->pw_name, host, pwd);
 	fflush(stdout);
 }
 

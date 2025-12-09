@@ -22,7 +22,7 @@ int echo(int argc, char *argv[]){
 	while(i < argc){
 		switch(argv[i][0]){
 			case('\"'):
-				write(STDOUT_FILENO, argv[i] + 1, strlen(argv[1]) - 2);
+				write(STDOUT_FILENO, argv[i] + 1, strlen(argv[i]) - 2);
 				break;
 			case('-'):
 				switch(argv[i][1]){
@@ -85,4 +85,20 @@ int bexit(int argc, char *argv[]){
 	disable_raw_mode();
 	exit(code);
 	return code;
+}
+
+int help(int argc, char *argv[]){
+	(void)argc; (void)argv;
+	printf("sash - stissshak's shell\n\n");
+        printf("Built-in commands:\n");
+        printf("  cd [dir]    - change directory\n");
+        printf("  pwd         - print working directory\n");
+        printf("  echo [args] - print arguments\n");
+        printf("  history     - show command history\n");
+        printf("  jobs        - list background jobs\n");
+        printf("  fg [id]     - bring job to foreground\n");
+        printf("  bg [id]     - continue job in background\n");
+        printf("  exit [code] - exit shell\n");
+        printf("  help        - show this help\n");
+        return 0;
 }

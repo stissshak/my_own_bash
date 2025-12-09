@@ -15,7 +15,7 @@ int match(Token token, TokenType type){
 }
 
 int is_redir_token(Token token){
-	return (token.type >= TOKEN_LTLTLT && token.type <= TOKEN_GT);
+	return (token.type >= TOKEN_LTLTLT && token.type <= TOKEN_AMP_GT);
 }
 
 RedirType get_redir_type(Token token){
@@ -28,6 +28,8 @@ RedirType get_redir_type(Token token){
 		case TOKEN_GTGT: return OUT_END;
 		case TOKEN_RIGHT_AMP: return OUT_ERR;
 		case TOKEN_GT: return OUT_NEW;
+		case TOKEN_AMP_GTGT: return OUT_ALL_END;
+                case TOKEN_AMP_GT: return OUT_ALL;
 		default:
 			fprintf(stderr, "Invalid redirection token\n");
 			exit(1);
@@ -115,11 +117,15 @@ ASTNode *parse_logic(Token *tokens, size_t *index){
 ASTNode *parse_pipe(Token *tokens, size_t *index){
 	ASTNode *left = parse_group(tokens, index);
 	
-	while(!match(tokens[*index], TOKEN_EOF) && match(tokens[*index], TOKEN_BAR)){
-		NodeType nt = NODE_PIPE;
+	while(!match(tokens[*index], TOKEN_EOF) && (match(tokens[*index], TOKEN_BAR) || match(tokens[*index], TOKEN_BAR_AMP))){
+		int pipe_stderr = match(tokens[*index], TOKEN_BAR_AMP);
 		++*index;
 		ASTNode *right = parse_group(tokens, index);
-		left = create_binary(nt, left, right);
+		left = create_binary(NODE_PIPE, left, right);
+
+		if(pipe_stderr && left->type == NODE_PIPE && left->binary.left->type == NODE_COMMAND){
+			add_redir(&left->binary.left->command.head, OUT_ERR, "1");	
+		}
 	}
 	return left;
 }
@@ -162,6 +168,8 @@ ASTNode *parse_command(Token *tokens, size_t *index){
 
 			if(match(tokens[*index], TOKEN_EOF) || !match(tokens[*index], TOKEN_WORD)){
 				fprintf(stderr, "Error: expected file name after redir\n");
+				free(argv);
+				free(redirlist);
 				exit(1);
 			}
 			

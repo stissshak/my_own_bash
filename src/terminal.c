@@ -29,6 +29,7 @@ void enable_raw_mode() {
 }
 
 void disable_raw_mode() {
+	oldt.c_lflag |= ISIG;
 	tcsetattr(STDIN_FILENO, TCSADRAIN, &oldt);
 }
 
@@ -37,10 +38,14 @@ KeyType read_key(char *out_char) {
 
 	if (read(STDIN_FILENO, &c, 1) < 1) return KEY_NONE;
 
-	if (c == 4) return KEY_CTRL_D;
-	if (c == 3) return KEY_CTRL_C;
-	if (c == 26) return KEY_CTRL_Z;
-	if (c == 12) return KEY_CTRL_L;
+	if (c == 1) return KEY_CTRL_A; 	// start of line
+	if (c == 3) return KEY_CTRL_C; 	// new command
+	if (c == 4) return KEY_CTRL_D; 	// EOF
+	if (c == 5) return KEY_CTRL_E; 	// end of line
+	if (c == 11) return KEY_CTRL_K;	// kill to end
+	if (c == 12) return KEY_CTRL_L; // screen clean
+	if (c == 21) return KEY_CTRL_U;	// new command
+	if (c == 26) return KEY_CTRL_Z; // screen clean	
 
 	if (c >= 32 && c <= 126) {
 		*out_char = c;
@@ -48,6 +53,8 @@ KeyType read_key(char *out_char) {
 	}
 
 	if (c == '\n' || c == '\r') return KEY_ENTER;
+
+	if (c == '\t') return KEY_TAB;
 
 	if (c == 127) return KEY_BACKSPACE;
 
@@ -66,6 +73,10 @@ KeyType read_key(char *out_char) {
 					return KEY_RIGHT;
 				case 'D': 
 					return KEY_LEFT;
+				case '3':
+					char tilde;
+					if(read(STDIN_FILENO, &tilde, 1) == 1 && tilde == '~') return KEY_DEL;
+					break;
 				default:
 					return KEY_ESC;
 			}
@@ -95,6 +106,7 @@ size_t get_line(char **str) {
 
 	char c;	
 	int finished = 0;
+	bool s1 = false, s2 = false;
 	history_reset_cursor();
 	while (!finished) {
 		KeyType kt = read_key(&c);		
@@ -126,6 +138,9 @@ size_t get_line(char **str) {
 				cursor++;
 				len++;
 
+				if(c == '\"') s1 = !s1;
+				else if(c == '\'') s2 = !s2;
+
 				write(STDOUT_FILENO, &c, 1);
 				write(STDOUT_FILENO, "\x1b[s", 3);
 				write(STDOUT_FILENO, buf + cursor, len - cursor);
@@ -146,9 +161,57 @@ size_t get_line(char **str) {
 				write(STDOUT_FILENO, " ", 1);
 				write(STDOUT_FILENO, "\x1b[u", 3);
 				break;
+			case KEY_DEL:
+				if(cursor < len){
+					for (size_t i = cursor; i < len - 1; ++i) {
+						buf[i] = buf[i + 1];
+					}
+					len--;
+					write(STDOUT_FILENO, "\x1b[s", 3);
+					write(STDOUT_FILENO, buf + cursor, len - cursor);
+					write(STDOUT_FILENO, " ", 1);
+					write(STDOUT_FILENO, "\x1b[u", 3);
+				}
+				break;
+			
 			case KEY_ENTER:
 				write(STDOUT_FILENO, "\n", 1);
-				finished = 1;
+				if(!s1 && !s2) finished = 1;
+				break;
+			case KEY_TAB:
+				break;
+			case KEY_CTRL_A:
+				if(cursor > 0){
+					char esc[16];
+					int n = snprintf(esc, sizeof(esc), "\x1b[%zuD", cursor);
+					write(STDOUT_FILENO, esc, n);
+					cursor = 0;
+				}
+				break;
+			case KEY_CTRL_E:
+				if(cursor < len){
+					char esc[16];
+					int n = snprintf(esc, sizeof(esc), "\x1b[%zuC", len - cursor);
+					write(STDOUT_FILENO, esc, n);
+					cursor = len;
+				}
+				break;
+
+			case KEY_CTRL_U:
+				if(cursor > 0){
+					memmove(buf, buf + cursor, len - cursor);
+					len -= cursor;
+					cursor = 0;
+					write(STDOUT_FILENO, "\r\x1b[K", 4);
+					if(reprint_greeting) reprint_greeting();
+					write(STDOUT_FILENO, buf, len);
+				}
+				break;
+			case KEY_CTRL_K:
+				if(cursor < len){
+					len = cursor;
+					write(STDOUT_FILENO, "\x1b[K", 3);
+				}
 				break;
 			case KEY_CTRL_D:
 				if(len == 0) {
@@ -177,11 +240,21 @@ size_t get_line(char **str) {
 			case KEY_CTRL_Z:
 			case KEY_CTRL_L:
 				write(STDOUT_FILENO, "\x1b[2J\x1b[H", 7);
-				reprint_greeting();
+				if(reprint_greeting) reprint_greeting();
+				redraw_line(buf, len, cursor);
 				break;
 			case KEY_UP:
 				const char *next = history_next();
 				if(next){
+					size_t hlen = strlen(next);
+					if(hlen >= n){
+						n = hlen + 1;
+						char *new_buf = realloc(buf, n);
+						if(!new_buf) break;
+						buf = new_buf;
+						*str = buf;
+					}
+
 					if(cursor > 0){
 						char esc[16];
 						int n = snprintf(esc, sizeof(esc), "\x1b[%zuD", cursor);
@@ -198,6 +271,15 @@ size_t get_line(char **str) {
 			case KEY_DOWN:
 				const char *prev = history_prev();
 				if(prev){
+					size_t hlen = strlen(next);
+					if(hlen >= n){
+						n = hlen + 1;
+						char *new_buf = realloc(buf, n);
+						if(!new_buf) break;
+						buf = new_buf;
+						*str = buf;
+					}
+
 					if(cursor > 0){
 						char esc[16];
 						int n = snprintf(esc, sizeof(esc), "\x1b[%zuD", cursor);
@@ -222,12 +304,15 @@ size_t get_line(char **str) {
 					write(STDOUT_FILENO, "\x1b[C", 3);
 					cursor++;
 				}
+			//	if(idea){
+			//	}
 				break;
 			case KEY_ESC:
 			default:
 				break;
 		}
 	}
+	while(buf[len-1] == ' ') --len;
 	buf[len] = '\0';
 	return len;
 }

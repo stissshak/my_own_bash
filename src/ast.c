@@ -89,10 +89,10 @@ void free_ast(ASTNode *root){
 		case NODE_SEQ:	
 		case NODE_AND:	
 		case NODE_OR:
+		case NODE_BACK:
 			free_ast(root->binary.left);
 			free_ast(root->binary.right);
 			break;
-		case NODE_BACK:
 		case NODE_SUBSHELL:
 		case NODE_GROUP:
 			free_ast(root->unary.child);
@@ -135,7 +135,9 @@ const char* get_redir_name(RedirType rt){
        		case OUT_END: return ">>";
        		case OUT_ERR: return ">&";
        		case OUT_NEW: return ">";
-       		default: return "?";
+		case OUT_ALL_END: return "&>>";
+		case OUT_ALL: return "&>";
+		default: return "?";
 	}
 }
 
