@@ -51,27 +51,22 @@ int echo(int argc, char *argv[]){
 }
 
 int cd(int argc, char *argv[]){
-	if(argc == 1){
-		char home[128] = "/home/";
-		uid_t euid = geteuid();
-		struct passwd *pw = getpwuid(euid);
-		strcat(home, pw->pw_name);
-
-		chdir(home);
-		return 0;
+	char *path = argc > 1 ? argv[1] : getenv("HOME");
+	if(!path){
+		fprintf(stderr, "cd: HOME not set\n");
+		return 1;
 	}
-	if(argc == 2){
-		// TODO env
-		chdir(argv[1]);
-		return 0;
+	if(chdir(path) != 0){
+		perror("cd");
+		return 1;
 	}
-	return 1;
+	return 0;
 }
 
 int pwd(int argc, char *argv[]){
 	(void)argc; (void)argv;
 	char pwd[256];
-	getcwd(pwd, 256);
+	getcwd(pwd, sizeof(pwd));
 	printf("%s\n", pwd);
 	return 0;
 }
