@@ -63,6 +63,7 @@ ASTNode *create_binary(NodeType, ASTNode*, ASTNode*);
 ASTNode *create_unary(NodeType, ASTNode*);
 void add_redir(Redir**, RedirType, const char*); 
 void free_ast(ASTNode*);
+char *ast_to_string(ASTNode*);
 
 void print_level(int);
 const char *get_node_name(NodeType);

@@ -15,7 +15,7 @@
 int echo(int argc, char *argv[]){
 	bool new_line = true, space = true;
 	if(argc == 1){
-		fprintf(stderr, "Inncorect amount of arguments");
+		printf("\n");
 		return 1;
 	}
 	int i = 1;
@@ -61,6 +61,7 @@ int cd(int argc, char *argv[]){
 		return 0;
 	}
 	if(argc == 2){
+		// TODO env
 		chdir(argv[1]);
 		return 0;
 	}

@@ -271,7 +271,7 @@ size_t get_line(char **str) {
 			case KEY_DOWN:
 				const char *prev = history_prev();
 				if(prev){
-					size_t hlen = strlen(next);
+					size_t hlen = strlen(prev);
 					if(hlen >= n){
 						n = hlen + 1;
 						char *new_buf = realloc(buf, n);

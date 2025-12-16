@@ -69,6 +69,100 @@ void add_redir(Redir **head, RedirType rt, const char *file){
 	buf->next = r;
 }
 
+static char *str_append(char *left, char *right){
+	if(!right) return left;
+	if(!left) return strdup(right);
+
+	size_t len1 = strlen(left);
+	size_t len2 = strlen(right);
+	char *new = realloc(left, len1 + len2 + 1);
+	if(!new){
+		free(left);
+		return NULL;
+	}
+	strcpy(new + len1, right);
+	return new;
+}
+
+char *ast_to_string(ASTNode *root){
+	if(!root) return strdup("");
+
+	char *result = NULL;
+	char *left, *right, *child;
+
+	switch(root->type){
+		case NODE_COMMAND:
+			for(int i = 0; i < root->command.argc; ++i){
+				if(i > 0) result = str_append(result, " ");
+				result = str_append(result, root->command.argv[i]);
+			}
+			break;
+		case NODE_PIPE:
+			left = ast_to_string(root->binary.left);
+			right = ast_to_string(root->binary.right);
+			result = str_append(result, left);
+			result = str_append(result, " | ");
+			result = str_append(result, right);
+			free(left);
+			free(right);
+			break;
+		case NODE_SEQ:
+			left = ast_to_string(root->binary.left);
+			right = ast_to_string(root->binary.right);
+			result = str_append(result, left);
+			result = str_append(result, " ; ");
+			result = str_append(result, right);
+			free(left);
+			free(right);
+			break;
+			break;
+		case NODE_AND:
+			left = ast_to_string(root->binary.left);
+			right = ast_to_string(root->binary.right);
+			result = str_append(result, left);
+			result = str_append(result, " && ");
+			result = str_append(result, right);
+			free(left);
+			free(right);
+			break;
+			break;
+		case NODE_OR:
+			left = ast_to_string(root->binary.left);
+			right = ast_to_string(root->binary.right);
+			result = str_append(result, left);
+			result = str_append(result, " || ");
+			result = str_append(result, right);
+			free(left);
+			free(right);
+			break;
+			break;
+		case NODE_BACK:
+			left = ast_to_string(root->binary.left);
+			result = str_append(result, left);
+			result = str_append(result, " &");
+			free(left);
+			break;
+		case NODE_SUBSHELL:
+			child = ast_to_string(root->unary.child);
+			result = str_append(result, "(");
+			result = str_append(result, child);
+			result = str_append(result, ")");
+			free(child);
+			break;
+		case NODE_GROUP:
+			child = ast_to_string(root->unary.child);
+			result = str_append(result, "{ ");
+			result = str_append(result, child);
+			result = str_append(result, " }");
+			free(child);	
+			break;
+		default:
+			result = strdup("?");
+			break;
+	}
+	return result;
+}
+
 void free_ast(ASTNode *root){
 	if(!root) return;
 	switch(root->type){

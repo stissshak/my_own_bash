@@ -72,16 +72,12 @@ void path(){
 }
 
 void signals(){
-	sigset_t mask;
-	sigemptyset(&mask);
-	sigaddset(&mask, SIGINT);
-	sigaddset(&mask, SIGQUIT);
-	sigaddset(&mask, SIGTERM);
-	sigaddset(&mask, SIGTSTP);
-	sigaddset(&mask, SIGTTIN);
-	sigaddset(&mask, SIGTTOU);
-	sigprocmask(SIG_BLOCK, &mask, NULL);
-
+	signal(SIGINT, SIG_IGN);
+	signal(SIGQUIT, SIG_IGN);
+	signal(SIGTERM, SIG_IGN);
+	signal(SIGTSTP, SIG_IGN);
+	signal(SIGTTIN, SIG_IGN);
+	signal(SIGTTOU, SIG_IGN);
 	struct sigaction sa;
 	sa.sa_handler = signal_handler;
 	sa.sa_flags = SA_NOCLDSTOP;

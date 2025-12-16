@@ -12,19 +12,26 @@ typedef enum {
 	DONE
 }job_st;
 
+typedef struct pid_st{
+	pid_t pid;
+	job_st status;
+}pid_st;
+
 typedef struct job_t{
-	int job_id;
 	pid_t pgid;
 	char *command;
+	pid_st *pids;
+	size_t n_pids;
 	struct job_t *next, *prev;
 	job_st status;
+	int job_id;
 }job_t;
 
 
 extern job_t *job_list;
 
 
-int add_job(pid_t, char*, job_st); // return jobId
+int add_job(pid_t, pid_t *, size_t, char*, job_st); // return jobId
 int remove_job(int);
 job_t *find_job(int);
 void update_jobs();

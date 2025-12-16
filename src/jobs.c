@@ -15,7 +15,7 @@
 job_t *job_list;
 int last_job = 1;
 
-job_t *create_job(pid_t pgid, char *name, job_st status){
+job_t *create_job(pid_t pgid, pid_t *pids, size_t n, char *name, job_st status){
 	job_t *buf = malloc(sizeof(job_t));
 	if(!buf){
 		perror("create_job");
@@ -31,20 +31,32 @@ job_t *create_job(pid_t pgid, char *name, job_st status){
 	buf->status = status;
 	buf->next = NULL;
 	buf->prev = NULL;
+	buf->n_pids = n;
+	buf->pids = malloc(n * sizeof(pid_st));
+	if(!buf->pids){
+		perror("create_job");
+		free(buf->command);
+		free(buf);
+		return NULL;
+	}
+	for(size_t i = 0; i < n; ++i){
+		buf->pids[i].pid = pids[i];
+		buf->pids[i].status = status;
+	}
 	buf->job_id = last_job++;
 	return buf;
 }
 
-int add_job(pid_t pgid, char* name, job_st status){
+int add_job(pid_t pgid, pid_t *pids, size_t n, char* name, job_st status){
 	if(!job_list){
-		job_list = create_job(pgid, name, status);	
+		job_list = create_job(pgid, pids, n, name, status);	
 		if(job_list) return job_list->job_id;
 		return -1;
 	}
 
 	job_t *buf = job_list;
 	while(buf->next) buf = buf->next;
-	buf->next = create_job(pgid, name, status);
+	buf->next = create_job(pgid, pids, n, name, status);
 	if(!buf->next) return -1;
 	buf->next->prev = buf;
 	return buf->next->job_id;
@@ -60,6 +72,7 @@ int remove_job(int job_id){
 	if(buf->prev) buf->prev->next = buf->next;
 	int jid = buf->job_id;
 	free(buf->command);
+	free(buf->pids);
 	free(buf);
 	return jid;
 }
@@ -81,22 +94,32 @@ job_t *find_job(int job_id){
 
 void update_jobs(){
 	job_t *j = job_list;
-	int status;
+	int status;	
 	pid_t ret;
+
 	while (j) {
-		ret = waitpid(-j->pgid, &status, WNOHANG | WUNTRACED | WCONTINUED);
-		if (ret > 0) {
-			if (WIFSTOPPED(status)) j->status = STOPPED;
-			else if (WIFCONTINUED(status)) j->status = RUNNING;
-			else if (WIFEXITED(status) || WIFSIGNALED(status)){
-				job_t *buf = j;
-				j = j->next;
-				printf("\nsash: Job %d, '%s' has ended\n", buf->job_id, buf->command);
-				remove_job(buf->job_id);
-				continue;
+		job_t *next = j->next;
+		int running = 0, stopped = 0;
+		for(size_t i = 0; i < j->n_pids; ++i){
+			ret = waitpid(j->pids[i].pid, &status, WNOHANG | WUNTRACED | WCONTINUED);
+			if (ret > 0) {
+				if (WIFSTOPPED(status)) j->pids[i].status = STOPPED;
+				else if (WIFCONTINUED(status)) j->pids[i].status = RUNNING;
+				else if (WIFEXITED(status) || WIFSIGNALED(status)) j->pids[i].status = DONE;
 			}
+		
+			if(j->pids[i].status == RUNNING) running = 1;
+			if(j->pids[i].status == STOPPED) stopped = 1;
+
 		}
-		j = j->next;
+
+		if(!running && !stopped){
+			printf("\n[%d] Done\t%s\n", j->job_id, j->command);
+			remove_job(j->job_id);
+		} 
+		else if(running) j->status = RUNNING;
+		else if(stopped) j->status = STOPPED;
+		j = next;
 	}
 }
 
@@ -145,18 +168,48 @@ int fg(int argc, char *argv[]){
 
 	tcsetpgrp(STDIN_FILENO, job->pgid);
 
-	if(job->status == STOPPED) kill(-job->pgid, SIGCONT);
-	job->status = RUNNING;
-
+	if(job->status == STOPPED){
+		kill(-job->pgid, SIGCONT);
+		for(size_t i = 0; i < job->n_pids; ++i){
+			if(job->pids[i].status == STOPPED){
+				job->pids[i].status = RUNNING;
+			}
+		}
+		job->status = RUNNING;
+	}
+	
 	int status;
-	waitpid(-job->pgid, &status, WUNTRACED);
+
+	for(size_t i = 0; i < job->n_pids; ++i){
+		if(job->pids[i].status == DONE) continue;
+
+		waitpid(job->pids[i].pid, &status, WUNTRACED);
+
+		if(WIFSTOPPED(status)) job->pids[i].status = STOPPED;
+		else job->pids[i].status = DONE;
+	}
 
 	tcsetpgrp(STDIN_FILENO, getpgrp());
 
-	if(WIFSTOPPED(status)) job->status = STOPPED;
-	else remove_job(job_id);
+	int running = 0, stopped = 0;
+	for(size_t i = 0; i < job->n_pids; ++i){
+		if(job->pids[i].status == RUNNING) running = 1;
+		if(job->pids[i].status == STOPPED) stopped = 1;
+	}
 
-	return WEXITSTATUS(status);
+	if(!running && !stopped){
+		remove_job(job_id);
+	}
+	else if(stopped){
+		job->status = STOPPED;
+		printf("\n[%d] Stopped\t%s\n", job->job_id, job->command);
+	}
+	else job->status = RUNNING;
+	
+	if(WIFEXITED(status)) return WEXITSTATUS(status);
+	if(WIFSIGNALED(status)) return 128 + WTERMSIG(status);
+	if(WIFSTOPPED(status)) return 128 + WSTOPSIG(status);
+	return 0;
 }
 
 int bg(int argc, char *argv[]){
@@ -174,7 +227,13 @@ int bg(int argc, char *argv[]){
 
 	if(job->status == STOPPED){
 		kill(-job->pgid, SIGCONT);
+		for(size_t i = 0; i < job->n_pids; ++i){
+			if(job->pids[i].status == STOPPED){
+				job->pids[i].status = RUNNING;
+			}
+		}
 		job->status = RUNNING;
+		printf("[%d] %s &\n", job->job_id, job->command);
 	}
 
 	return 0;
@@ -207,7 +266,7 @@ int bkill(int argc, char *argv[]){
 			fprintf(stderr, "kill: job %d not found\n", job_id);
 			return 1;
 		}
-		kill(-job_id, sig);
+		kill(-job->pgid, sig);
 	}else{
 		pid_t pid = atoi(argv[arg_start]);
 		kill(pid, sig);
