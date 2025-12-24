@@ -264,7 +264,7 @@ int execute_command(ASTNode *root){
 	if(bg_m){
 		char *name = ast_to_string(root);
 		pid_t pids[] = {pid};
-		int id = add_job(pid, pids, 1, name, RUNNING);
+		int id = add_job(create_job(pid, pids, 1, name, RUNNING));
 		printf("[%d] %d\n", id, pid);
 		free(name);
 		return 0;
@@ -280,7 +280,7 @@ int execute_command(ASTNode *root){
 	if(WIFSTOPPED(status)){
 		char *name = ast_to_string(root);
 		pid_t pids[] = {pid};
-		int id = add_job(pid, pids, 1, name, STOPPED);
+		int id = add_job(create_job(pid, pids, 1, name, STOPPED));
 		printf("\n[%d] Stopped\t%s\n", id, root->command.argv[0]);
 		free(name);
 		return 128 + WSTOPSIG(status);
@@ -367,13 +367,12 @@ int execute_pipe(ASTNode *root){
 		}
 	}
 
-	if(bg_m){
-		char *name = ast_to_string(root);
-		int id = add_job(pgid, pids, n, name, RUNNING);
-		printf("[%d] %d\n", id, pgid);
-		free(name);
-		return 0;
-	}
+	char *name = ast_to_string(root);
+    job_t *job = create_job(pgid, pids, n, name, RUNNING); 
+	int id = add_job(job);
+	printf("[%d] %d\n", id, pgid);
+	free(name);
+	if(bg_m) return 0;
 
 	tcsetpgrp(STDIN_FILENO, pgid);
 
@@ -381,14 +380,14 @@ int execute_pipe(ASTNode *root){
 	int stopped = 0;
 	for(int i = 0; i < n; ++i){
 		waitpid(pids[i], &status, WUNTRACED);
-		if(WIFSTOPPED(status)) stopped = 1;
+		if(WIFSTOPPED(status)) job->pids[i].status = STOPPED;
 	}
 
 	tcsetpgrp(STDIN_FILENO, getpgrp());
 
 	if(stopped){
 		char *name = ast_to_string(root);
-		int id = add_job(pgid, pids, n, name, STOPPED);
+		int id = add_job(create_job(pgid, pids, n, name, STOPPED));
 		printf("\n[%d] Stopped\t%s\n", id, name);
 		free(name);
 		return 128 + WSTOPSIG(status);
@@ -413,7 +412,7 @@ int execute_subshell(ASTNode *root){
 	if(bg_m){
 		char *name = ast_to_string(root);
 		pid_t pids[] = {pid};
-		int id = add_job(pid, pids, 1, name, RUNNING);
+		int id = add_job(create_job(pid, pids, 1, name, RUNNING));
 		printf("[%d] %d\n", id, pid);
 		free(name);
 		return 0;
@@ -429,7 +428,7 @@ int execute_subshell(ASTNode *root){
 	if(WIFSTOPPED(status)){
 		char *name = ast_to_string(root);
 		pid_t pids[] = {pid};
-		int id = add_job(pid, pids, 1, name, STOPPED);
+		int id = add_job(create_job(pid, pids, 1, name, STOPPED));
 		printf("\n[%d] Stopped\t%s\n", id, name);
 		free(name);
 		return 128 + WSTOPSIG(status);
@@ -475,4 +474,5 @@ int execute(ASTNode *root){
 			return 1;
 	}
 }
+
 
