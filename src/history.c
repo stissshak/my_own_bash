@@ -15,7 +15,6 @@
 #define DSS 128 // DEFAULT STRING SIZE
 
 static HistoryList *head, *end, *cursor;
-static HistoryList empty = {"\0", NULL, NULL};
 static size_t count = 0;
 int fd;
 
@@ -167,7 +166,7 @@ const char *history_prev(){
 		return cursor->cmd;
 	}
 	cursor = NULL;
-	return empty.cmd;
+	return "\0";
 }
 
 const char *history_next(){

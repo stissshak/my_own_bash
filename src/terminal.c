@@ -312,7 +312,7 @@ size_t get_line(char **str) {
 				break;
 		}
 	}
-	while(buf[len-1] == ' ') --len;
+	while(len > 0 && buf[len-1] == ' ') --len;
 	buf[len] = '\0';
 	return len;
 }
