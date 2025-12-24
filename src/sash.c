@@ -116,7 +116,7 @@ int main(){
 		}
 
 		history_add(buf);
-		Token *tokens = tokenize(buf);
+        Token *tokens = tokenize(buf);
 		ASTNode *root = parse(tokens);
 		disable_raw_mode();
 		execute(root);

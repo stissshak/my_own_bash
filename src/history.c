@@ -72,6 +72,7 @@ static void extract_commands(){
 		head = buf;
 		++count;
 	}
+    free(cmd);
 	cursor = head;
 }
 

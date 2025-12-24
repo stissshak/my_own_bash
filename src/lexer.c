@@ -22,24 +22,92 @@ const char *operators[] = {
 
 /////////////////////////////////////////////////
 
+static int is_metachar(char c){
+    return c && strchr(metachars, c);
+}
+
 int word_end(const char *str, size_t index){
 	return str[index] != '\0' && !isspace(str[index]) && !strchr(metachars, str[index]); 
 }
 
+static int push(char **buf, size_t *len, size_t *size, char c){
+    if(*len + 1 >= *size){
+        *size *= 2;
+        char *new = realloc(*buf, *size);
+        if(!new) return -1;
+        *buf = new;
+    }
+    (*buf)[(*len)++] = c;
+    return 0;
+}
+
+static int extract_quoted(const char *str, size_t *index, char **buf, size_t *len, size_t *size){
+    char c = str[*index];
+    ++*index;
+
+    while(str[*index] && str[*index] != c){
+        if(c == '"' && str[*index] == '\\' && str[*index + 1]){
+            char next = str[*index + 1];
+            if(next == '"' || next == '\\' || next == '`'){
+                push(buf, len, size, next);
+                *index += 2;
+                continue;
+            }
+        }
+        push(buf, len, size, str[*index]);
+        ++*index;
+    }
+
+    if(!str[*index]){
+        return -1;
+    }
+    ++*index;
+    return 0;
+}
+
 Token extract_word(const char *str, size_t *index){
-	size_t start = *index;
-	while(word_end(str, *index)) ++*index;
-	if(start == *index){
-		Token token = {TOKEN_EOF, NULL};
+    size_t size = 64, len = 0;
+	char *buf = malloc(size);
+	if(!buf){
+		Token token = {TOKEN_ERROR, NULL};
 		return token;
 	}
-	char *word = strndup(&str[start], *index - start);
-	if(!word){
-		perror("extract_word: ");
-		Token token = {TOKEN_ERROR, str + *index};
-		return token;
-	}
-	Token token = {TOKEN_WORD, word};
+
+    while(str[*index] && !isspace(str[*index]) && !is_metachar(str[*index])){
+
+        char c = str[*index];
+
+        if(c == '"' || c == '\''){
+
+            if(extract_quoted(str, index, &buf, &len, &size) < 0){
+                free(buf);
+                Token token = {TOKEN_ERROR, NULL};
+                return token;
+            }
+            continue;
+        }
+
+        if(c == '\\' && str[*index + 1]){
+
+            ++*index;
+            push(&buf, &len, &size, str[*index]);
+            ++*index;
+            continue;
+        }
+ 
+        push(&buf, &len, &size, str[*index]);
+
+        ++*index;
+    }
+
+    buf[len] = '\0';
+
+    if(len == 0){
+        free(buf);
+        Token token = {TOKEN_EOF, NULL};
+        return token;
+    }
+	Token token = {TOKEN_WORD, buf};
 	return token;
 }
 
@@ -65,54 +133,27 @@ Token extract_op(const char *str, size_t *index){
 	return token;
 }
 
-Token extract_str(const char *str, size_t *index){
-	size_t start = *index + 1;
-	char s = str[start-1];
-	++*index;
-	while(str[*index] != '\0' && str[*index] != s) ++*index;
-	if(str[*index] == '\0'){
-		fprintf(stderr, "Not even closed \"\n");
-		Token token = {TOKEN_ERROR, str + *index};
-		return token;
-	}
-	++*index;
-	char *word = strndup(&str[start], *index - start - 1);
-	if(!word){
-		perror("extract_str: ");
-		Token token = {TOKEN_ERROR, str + *index};
-		return token;
-	}
-	Token token = {TOKEN_WORD, word};
-	return token;
-}
-
 Token extract(const char *str, size_t *index){
 	while(isspace(str[*index]) && str[*index] != '\0') ++*index;
-	Token end = {TOKEN_EOF, NULL};
-	if(str[*index] == '\0' || str[*index] == '\n' || str[*index] == '#') return end;
-	else if(str[*index] == '\"' || str[*index] == '\'') return extract_str(str, index);
-	else if(strchr(metachars, str[*index])) return extract_op(str, index);
-	return extract_word(str, index);
+	
+    Token end = {TOKEN_EOF, NULL};
+	if(!str[*index] || str[*index] == '\n' || str[*index] == '#') return end;
+	if(strchr(metachars, str[*index])) return extract_op(str, index);
+    return extract_word(str, index);
 }
 
 // Creating Array of Tokens and extracting every Token from string
 Token *tokenize(const char *str){
-	size_t index = 0, count = 0;
-	size_t size = 16;
+	size_t index = 0, count = 0, size = 16;
 	
 	Token *result = malloc(size * sizeof(Token));
-	if(!result){
-		perror("tokenize");
-		return NULL;
-	}
+	if(!result) return NULL;
+
 	while(1){
 		if(count >= size - 1){
 			size *= 2;
 			result = realloc(result, size * sizeof(Token));
-			if(!result){
-				perror("tokenize");
-				return NULL;
-			}
+			if(!result) return NULL;
 		}
 		result[count] = extract(str, &index);
 		if(result[count].type == TOKEN_ERROR || result[count].type == TOKEN_EOF) break;
