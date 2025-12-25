@@ -32,3 +32,6 @@
 - Autofill
 - Colors for user writed text
 - Optimization
+- ANSI library
+- Rewrite ast_to_string
+- Logging system
