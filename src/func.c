@@ -12,6 +12,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define _POSIX_C_SOURCE 200809L
+
 int echo(int argc, char *argv[]){
 	bool new_line = true, space = true;
 	if(argc == 1){
@@ -51,15 +53,24 @@ int echo(int argc, char *argv[]){
 }
 
 int cd(int argc, char *argv[]){
-	char *path = argc > 1 ? argv[1] : getenv("HOME");
-	if(!path){
-		fprintf(stderr, "cd: HOME not set\n");
-		return 1;
-	}
-	if(chdir(path) != 0){
-		perror("cd");
-		return 1;
-	}
+    char oldpwd[256];
+    getcwd(oldpwd, sizeof(oldpwd));
+
+	char *path;
+    if(argc < 2 || !argv[1]) path = getenv("HOME");
+    else if(!strcmp(argv[1], "-")) path = getenv("OLDPWD");
+    else path = argv[1];
+    
+    if(chdir(path) != 0){
+        perror("cd");
+        return 1;
+    }
+
+    setenv("OLDPWD", oldpwd, 1);
+
+    char newpwd[256];
+    getcwd(newpwd, sizeof(newpwd));
+    setenv("PWD", newpwd, 1);
 	return 0;
 }
 

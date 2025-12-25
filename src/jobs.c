@@ -153,19 +153,33 @@ int jobs(int argc, char *argv[]){
 	return 0;	
 }
 
+static job_t *f_last_stopped(){
+    job_t *f = NULL;
+    for(job_t *j = job_list; j; j = j->next){
+        if(j->status == STOPPED){
+            if(!f || j->job_id > f->job_id) f = j;
+        }
+    }
+    return f;
+}
+
 int fg(int argc, char *argv[]){
-	if(argc < 2){
-		fprintf(stderr, "fg: need job id\n");
-		return 1;
+	job_t *job;
+    if(argc < 2){
+		job = f_last_stopped();
+        if(!job){
+            fprintf(stderr, "fg: no stopped jobs\n");
+		    return 1;
+        }
 	}
-
-	int job_id = atoi(argv[1]);
-	job_t *job = find_job(job_id);
-	if(!job){
-		fprintf(stderr, "fg: job %d not found\n", job_id);
-		return 1;
-	}
-
+    else{
+    	int job_id = atoi(argv[1]);
+    	job = find_job(job_id);
+    	if(!job){
+    		fprintf(stderr, "fg: job %d not found\n", job_id);
+    		return 1;
+    	}
+    }
 	tcsetpgrp(STDIN_FILENO, job->pgid);
 
 	if(job->status == STOPPED){
@@ -198,7 +212,7 @@ int fg(int argc, char *argv[]){
 	}
 
 	if(!running && !stopped){
-		remove_job(job_id);
+		remove_job(job->job_id);
 	}
 	else if(stopped){
 		job->status = STOPPED;
@@ -213,18 +227,22 @@ int fg(int argc, char *argv[]){
 }
 
 int bg(int argc, char *argv[]){
-	if(argc < 2){
-		fprintf(stderr, "bg: need job id\n");
-		return 1;
+    job_t *job;
+    if(argc < 2){
+		job = f_last_stopped();
+        if(!job){
+            fprintf(stderr, "bg: no stopped jobs\n");
+		    return 1;
+        }
 	}
-
-	int job_id = atoi(argv[1]);
-	job_t *job = find_job(job_id);
-	if(!job){
-		fprintf(stderr, "bg: job %d not found\n", job_id);
-		return 1;
-	}
-
+    else{
+    	int job_id = atoi(argv[1]);
+    	job = find_job(job_id);
+    	if(!job){
+    		fprintf(stderr, "bg: job %d not found\n", job_id);
+    		return 1;
+    	}
+    }
 	if(job->status == STOPPED){
 		kill(-job->pgid, SIGCONT);
 		for(size_t i = 0; i < job->n_pids; ++i){

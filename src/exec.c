@@ -106,7 +106,7 @@ int execute_redirect(Redir *redirs){
 					return 1;
 				}
 				if(dup2(file, STDIN_FILENO) < 0){
-					perror("cringe");
+					perror("redirect: dup2");
 					close(file);
 					return 1;
 				}

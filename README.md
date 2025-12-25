@@ -8,7 +8,7 @@
     - Group
     - Logical
     - Pipe 
-- Buil-in functions:
+- Built-in functions:
     - echo, cd, pwd, bexit, help 
     - jobs, fg, bg, bkill
     - history
