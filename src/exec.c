@@ -399,6 +399,8 @@ int execute_pipe(ASTNode *root){
 		free(name);
 		return 128 + WSTOPSIG(status);
 	}
+    free(job->command);
+    free(job->pids);
     free(job);
 	if(WIFEXITED(status)) return WEXITSTATUS(status);
 	if(WIFSIGNALED(status)) return 128 + WTERMSIG(status);

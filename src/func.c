@@ -1,5 +1,7 @@
 // func.c
 
+#define _POSIX_C_SOURCE 200809L
+
 #include "func.h"
 #include "history.h"
 #include "terminal.h"
@@ -11,8 +13,6 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#define _POSIX_C_SOURCE 200809L
 
 int echo(int argc, char *argv[]){
 	bool new_line = true, space = true;
