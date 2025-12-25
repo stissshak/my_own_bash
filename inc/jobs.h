@@ -30,8 +30,8 @@ typedef struct job_t{
 
 extern job_t *job_list;
 
-
-int add_job(pid_t, pid_t *, size_t, char*, job_st); // return jobId
+job_t *create_job(pid_t, pid_t *, size_t, char*, job_st);
+int add_job(job_t*); // return jobId
 int remove_job(int);
 job_t *find_job(int);
 void update_jobs();

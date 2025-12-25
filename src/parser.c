@@ -71,8 +71,17 @@ int is_operator(Token t){
 // Wrapper
 ASTNode *parse(Token *tokens){
 	size_t index = 0;
-	ASTNode *root = parse_seq(tokens, &index);
 	
+    if(!tokens) return NULL;
+
+    if(is_operator(tokens[0]) && !match_lparen(tokens[0].type)){
+        fprintf(stderr, "syntax error: exepted string\n");
+        return NULL;
+    }
+
+    ASTNode *root = parse_seq(tokens, &index);
+    if(!root) return NULL;
+
 	if(!match(tokens[index], TOKEN_EOF)){
 		fprintf(stderr, "parse: unexepted token '%s'\n", tokens[index].op);
 		free_ast(root);
@@ -84,6 +93,7 @@ ASTNode *parse(Token *tokens){
 // Parsing ; and & - with the lowest priotity
 ASTNode *parse_seq(Token *tokens, size_t *index){
 	ASTNode *left = parse_logic(tokens, index);
+    if(!left) return NULL;
 
 	while(!match(tokens[*index], TOKEN_EOF) && (match(tokens[*index], TOKEN_SEMICOLON) || match(tokens[*index], TOKEN_BACK))){
 		NodeType nt = match(tokens[*index], TOKEN_SEMICOLON) ? NODE_SEQ : NODE_BACK;
@@ -102,12 +112,21 @@ ASTNode *parse_seq(Token *tokens, size_t *index){
 // Parsing || and &&
 ASTNode *parse_logic(Token *tokens, size_t *index){
 	ASTNode *left = parse_pipe(tokens, index);
+    if(!left) return NULL;
 	
 	while(!match(tokens[*index], TOKEN_EOF) && (match(tokens[*index], TOKEN_AND) || match(tokens[*index], TOKEN_OR))){
-		NodeType nt = match(tokens[*index], TOKEN_AND) ? NODE_AND : NODE_OR;
-		++*index;
+        NodeType nt = match(tokens[*index], TOKEN_AND) ? NODE_AND : NODE_OR;
+		char *op = (nt == NODE_AND) ? "&&" : "||";
+        ++*index;
 		ASTNode *right = parse_pipe(tokens, index);
-		left = create_binary(nt, left, right);
+		
+        if(!right){
+            if(!(match(tokens[*index], TOKEN_WORD) || match_lparen(tokens[*index].type)))
+                fprintf(stderr, "syntax error: expected command after '%s'\n", op);
+            free_ast(left);
+            return NULL;
+        }
+        left = create_binary(nt, left, right);
 	}
 
 	return left;
@@ -116,11 +135,19 @@ ASTNode *parse_logic(Token *tokens, size_t *index){
 // Parsing |
 ASTNode *parse_pipe(Token *tokens, size_t *index){
 	ASTNode *left = parse_group(tokens, index);
-	
+	if(!left) return NULL;
+
 	while(!match(tokens[*index], TOKEN_EOF) && (match(tokens[*index], TOKEN_BAR) || match(tokens[*index], TOKEN_BAR_AMP))){
-		int pipe_stderr = match(tokens[*index], TOKEN_BAR_AMP);
+        int pipe_stderr = match(tokens[*index], TOKEN_BAR_AMP);
 		++*index;
 		ASTNode *right = parse_group(tokens, index);
+        if(!right){
+            if(!(match(tokens[*index], TOKEN_WORD) || match_lparen(tokens[*index].type)))
+                fprintf(stderr, "syntax error: expected command after '|'\n");
+            free_ast(left);
+            return NULL;
+ 
+        }
 		left = create_binary(NODE_PIPE, left, right);
 
 		if(pipe_stderr && left->type == NODE_PIPE && left->binary.left->type == NODE_COMMAND){

@@ -16,7 +16,10 @@ OBJ=$(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRC))
 DEP=$(patsubst $(SRC_DIR)/%.c, $(DEP_DIR)/%.d, $(SRC))
 EXE=$(BIN_DIR)/sash
 
-all: debug
+all: debug run
+
+run: $(EXE)
+	@./$(EXE)
 
 debug: CFLAGS += -g
 debug: $(EXE)

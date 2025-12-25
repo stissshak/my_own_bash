@@ -47,16 +47,16 @@ job_t *create_job(pid_t pgid, pid_t *pids, size_t n, char *name, job_st status){
 	return buf;
 }
 
-int add_job(pid_t pgid, pid_t *pids, size_t n, char* name, job_st status){
+int add_job(job_t *new){
 	if(!job_list){
-		job_list = create_job(pgid, pids, n, name, status);	
+		job_list = new;	
 		if(job_list) return job_list->job_id;
 		return -1;
 	}
 
 	job_t *buf = job_list;
 	while(buf->next) buf = buf->next;
-	buf->next = create_job(pgid, pids, n, name, status);
+	buf->next = new;
 	if(!buf->next) return -1;
 	buf->next->prev = buf;
 	return buf->next->job_id;

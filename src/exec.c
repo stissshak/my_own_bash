@@ -367,12 +367,15 @@ int execute_pipe(ASTNode *root){
 		}
 	}
 
-	char *name = ast_to_string(root);
-    job_t *job = create_job(pgid, pids, n, name, RUNNING); 
-	int id = add_job(job);
-	printf("[%d] %d\n", id, pgid);
+    char *name = ast_to_string(root);	
+	job_t *job = create_job(pgid, pids, n, name, RUNNING);
 	free(name);
-	if(bg_m) return 0;
+
+	if(bg_m){    
+        int id = add_job(job);
+        printf("[%d] %d\n", id, pgid);
+        return 0;
+    }
 
 	tcsetpgrp(STDIN_FILENO, pgid);
 
@@ -380,18 +383,23 @@ int execute_pipe(ASTNode *root){
 	int stopped = 0;
 	for(int i = 0; i < n; ++i){
 		waitpid(pids[i], &status, WUNTRACED);
-		if(WIFSTOPPED(status)) job->pids[i].status = STOPPED;
+		if(WIFSTOPPED(status)){
+            job->pids[i].status = STOPPED;
+            stopped = 1;
+        }
 	}
 
 	tcsetpgrp(STDIN_FILENO, getpgrp());
 
 	if(stopped){
 		char *name = ast_to_string(root);
-		int id = add_job(create_job(pgid, pids, n, name, STOPPED));
+        job->status = STOPPED;
+		int id = add_job(job);
 		printf("\n[%d] Stopped\t%s\n", id, name);
 		free(name);
 		return 128 + WSTOPSIG(status);
 	}
+    free(job);
 	if(WIFEXITED(status)) return WEXITSTATUS(status);
 	if(WIFSIGNALED(status)) return 128 + WTERMSIG(status);
 	return 0;
